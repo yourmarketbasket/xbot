@@ -103,6 +103,11 @@
             border-style: solid;
             border-color: #fff transparent transparent transparent;
         }
+        .dialog-box img, .dialog-box video {
+            max-width: 100%;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
         .table tbody tr {
             transition: background-color 0.2s ease;
         }
@@ -450,7 +455,7 @@
                     ellipsisBtn.className = 'ellipsis-btn';
                     ellipsisBtn.textContent = '...';
                     ellipsisBtn.addEventListener('mouseenter', (e) => {
-                        showDialog(e.target, tweet.message);
+                        showDialog(e.target, tweet);
                     });
                     messageCell.appendChild(ellipsisBtn);
                 }
@@ -489,18 +494,46 @@
             updateCountdowns();
         }
 
-        function showDialog(target, message) {
+        function showDialog(target, tweet) {
             const dialogBox = document.getElementById('dialog-box');
-            dialogBox.textContent = message;
+            dialogBox.innerHTML = ''; // Clear previous content
+
+            const message = document.createElement('p');
+            message.textContent = tweet.message;
+            dialogBox.appendChild(message);
+
+            if (tweet.media_path) {
+                const media_path = `/media/${basename(tweet.media_path)}`;
+                if (media_path.endsWith('.mp4') || media_path.endsWith('.mov')) {
+                    const video = document.createElement('video');
+                    video.src = media_path;
+                    video.controls = true;
+                    dialogBox.appendChild(video);
+                } else {
+                    const img = document.createElement('img');
+                    img.src = media_path;
+                    dialogBox.appendChild(img);
+                }
+            }
 
             const rect = target.getBoundingClientRect();
             dialogBox.style.display = 'block';
             dialogBox.style.left = `${rect.left + window.scrollX}px`;
             dialogBox.style.top = `${rect.top + window.scrollY - dialogBox.offsetHeight - 10}px`;
 
-            dialogBox.addEventListener('mouseleave', () => {
+            const closeDialog = () => {
                 dialogBox.style.display = 'none';
-            });
+                document.removeEventListener('click', closeDialogOnClickOutside);
+            };
+
+            const closeDialogOnClickOutside = (e) => {
+                if (!dialogBox.contains(e.target) && e.target !== target) {
+                    closeDialog();
+                }
+            };
+
+            dialogBox.addEventListener('mouseleave', closeDialog);
+            document.addEventListener('click', closeDialogOnClickOutside);
         }
 
         function updatePagination(elementId, currentPage, totalPages) {
