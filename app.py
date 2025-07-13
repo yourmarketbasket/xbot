@@ -171,7 +171,7 @@ def get_twitter_conn_v1(credential_index):
     creds = get_current_credentials(credential_index)
     if not creds:
         print("No credentials available for v1 connection.")
-        return None
+        return None, "no_credentials"
     try:
         auth = tweepy.OAuth1UserHandler(
             creds['API KEY'],
@@ -182,16 +182,21 @@ def get_twitter_conn_v1(credential_index):
         api = tweepy.API(auth, wait_on_rate_limit=False)
         api.verify_credentials()
         print(f"Credentials for {creds['Email']} verified successfully for v1")
-        return api
-    except Exception as e:
-        print(f"Error verifying credentials for {creds['Email']} (v1): {str(e)}")
-        return None
+        return api, "success"
+    except tweepy.errors.TweepyException as e:
+        if "429" in str(e):
+            print(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
+            quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=12)
+            return None, "rate_limited"
+        else:
+            print(f"Error verifying credentials for {creds['Email']} (v1): {str(e)}")
+            return None, "error"
 
 def get_twitter_conn_v2(credential_index):
     creds = get_current_credentials(credential_index)
     if not creds:
         print("No credentials available for v2 connection.")
-        return None
+        return None, "no_credentials"
     try:
         client = tweepy.Client(
             consumer_key=creds['API KEY'],
@@ -201,14 +206,15 @@ def get_twitter_conn_v2(credential_index):
         )
         client.get_me()
         print(f"OAuth 1.0a v2 client initialized for {creds['Email']}")
-        return client
+        return client, "success"
     except tweepy.errors.TweepyException as e:
-        if e.response and e.response.status_code == 429:
+        if "429" in str(e):
             print(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
             quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=12)
+            return None, "rate_limited"
         else:
             print(f"Error initializing v2 client for {creds['Email']}: {str(e)}")
-        return None
+            return None, "error"
 
 # Validate file extension and size
 def allowed_file(filename, file_size):
@@ -256,7 +262,13 @@ def _upload_media(client_v1, media_path, email):
         if not allowed_file(media_path, file_size):
             raise ValueError(f"Invalid media file: {media_path}. Check extension or size.")
         print(f"Uploading media: {media_path} with {email}")
-        media = client_v1.media_upload(filename=media_path)
+
+        ext = os.path.splitext(media_path.lower())[1]
+        if ext in {'.mp4', '.mov'}:
+            media = client_v1.media_upload(filename=media_path, media_category='tweet_video')
+        else:
+            media = client_v1.media_upload(filename=media_path)
+
         print(f"Media uploaded: {media.media_id_string}")
         return [media.media_id_string]
     except (tweepy.TweepyException, ValueError) as e:
@@ -292,8 +304,12 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
             switch_credentials()
             continue
 
-        client_v1 = get_twitter_conn_v1(current_credential_index)
-        client_v2 = get_twitter_conn_v2(current_credential_index)
+        client_v1, v1_status = get_twitter_conn_v1(current_credential_index)
+        client_v2, v2_status = get_twitter_conn_v2(current_credential_index)
+
+        if v1_status == "rate_limited" or v2_status == "rate_limited":
+            switch_credentials()
+            continue
 
         if not client_v1 or not client_v2:
             print(f"Failed to initialize Twitter clients for {creds['Email']}. Switching credentials.")
