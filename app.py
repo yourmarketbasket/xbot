@@ -144,6 +144,17 @@ save_tweets_to_file(tweets)
 # Register custom Jinja2 filter
 app.jinja_env.filters['basename'] = basename_filter
 
+# Proxy configuration
+PROXY_HOST = "geo.iproyal.com"
+PROXY_PORTS = [12321, 11200, 11201, 11202, 11203]
+PROXY_USER = "xKplVa24ZiRopAv2"
+PROXY_PASS = "jkYc1AhYXG8ASwA1"
+
+def get_proxy():
+    port = random.choice(PROXY_PORTS)
+    proxy_url = f"http://{PROXY_USER}:{PROXY_PASS}@{PROXY_HOST}:{port}"
+    return {"http": proxy_url, "https": proxy_url}
+
 # Twitter/X API connections
 def get_twitter_conn_v1(credential_index):
     creds = get_current_credentials(credential_index)
@@ -151,18 +162,19 @@ def get_twitter_conn_v1(credential_index):
         print("No credentials available for v1 connection.")
         return None
     try:
+        proxy = get_proxy()
         auth = tweepy.OAuth1UserHandler(
             creds['API KEY'],
             creds['API KEY SECRET'],
             creds['ACCESS TOKEN'],
             creds['ACCESS TOKEN SECRET']
         )
-        api = tweepy.API(auth, wait_on_rate_limit=False)
+        api = tweepy.API(auth, wait_on_rate_limit=False, proxy=proxy['https'])
         api.verify_credentials()
-        print(f"Credentials for {creds['Email']} verified successfully for v1")
+        print(f"Credentials for {creds['Email']} verified successfully for v1 via proxy {proxy['https']}")
         return api
-    except tweepy.TweepyException as e:
-        print(f"Error verifying credentials for {creds['Email']} (v1): {str(e)}")
+    except Exception as e:
+        print(f"Error verifying credentials for {creds['Email']} (v1) via proxy: {str(e)}")
         return None
 
 def get_twitter_conn_v2(credential_index):
@@ -171,17 +183,19 @@ def get_twitter_conn_v2(credential_index):
         print("No credentials available for v2 connection.")
         return None
     try:
+        proxy = get_proxy()
         client = tweepy.Client(
             consumer_key=creds['API KEY'],
             consumer_secret=creds['API KEY SECRET'],
             access_token=creds['ACCESS TOKEN'],
-            access_token_secret=creds['ACCESS TOKEN SECRET']
+            access_token_secret=creds['ACCESS TOKEN SECRET'],
+            proxy=proxy
         )
         client.get_me()
-        print(f"OAuth 1.0a v2 client initialized for {creds['Email']}")
+        print(f"OAuth 1.0a v2 client initialized for {creds['Email']} via proxy {proxy['https']}")
         return client
-    except tweepy.TweepyException as e:
-        print(f"Error initializing v2 client for {creds['Email']}: {str(e)}")
+    except Exception as e:
+        print(f"Error initializing v2 client for {creds['Email']} via proxy: {str(e)}")
         return None
 
 # Validate file extension and size
