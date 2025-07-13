@@ -280,6 +280,7 @@
         <!-- Status Card for Credential and Scheduling Info -->
         <div class="status-card">
             <h5>System Status</h5>
+            <p><strong>System State:</strong> <span id="system-state">Not Started</span></p>
             <p><strong>Automatic Scheduling:</strong> Up to 17 random tweets posted daily per credential.</p>
             <p><strong>Next Post On:</strong> <span id="next-post-on">Loading...</span> (Nairobi Time)</p>
             <p>
@@ -287,8 +288,32 @@
                 <button id="switch-credential-btn" class="btn btn-secondary btn-sm switch-credential-btn">Switch Credential</button>
             </p>
             <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
-                <p><strong>Quarantined Credentials:</strong></p>
-                <ul id="quarantined-list" class="list-group"></ul>
+            <p><strong>Quarantined Credentials:</strong></p>
+            <ul id="quarantined-list" class="list-group"></ul>
+        </div>
+
+        <!-- File Upload and System Start -->
+        <div class="status-card">
+            <h5>Setup</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Upload Credentials</h6>
+                    <form id="upload-credentials-form" class="mb-3">
+                        <input type="file" name="credentials" class="form-control" accept=".xlsx" required>
+                        <button type="submit" class="btn btn-primary mt-2">Upload</button>
+                    </form>
+                    <button id="use-default-credentials" class="btn btn-secondary">Use Default Credentials</button>
+                </div>
+                <div class="col-md-6">
+                    <h6>Upload Tweets</h6>
+                    <form id="upload-tweets-form" class="mb-3">
+                        <input type="file" name="tweets" class="form-control" accept=".json" required>
+                        <button type="submit" class="btn btn-primary mt-2">Upload</button>
+                    </form>
+                    <button id="use-default-tweets" class="btn btn-secondary">Use Default Tweets</button>
+                </div>
+            </div>
+            <button id="start-system-btn" class="btn btn-success mt-3" disabled>Start System</button>
         </div>
 
         <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
@@ -301,7 +326,7 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="post-now-tab" data-bs-toggle="tab" data-bs-target="#post-now" type="button" role="tab" aria-controls="post-now" aria-selected="false">Post Tweet Now</button>
             </li>
-             <li class="nav-item" role="presentation">
+            <li class="nav-item" role="presentation">
                 <button class="nav-link" id="schedule-new-tab" data-bs-toggle="tab" data-bs-target="#schedule-new" type="button" role="tab" aria-controls="schedule-new" aria-selected="false">Schedule New Tweets</button>
             </li>
         </ul>
@@ -740,6 +765,79 @@
         fetchCredentialsStatus();
         fetchSystemStatus();
         updateCountdowns();
+
+        // New functionality for file uploads and system start
+        async function checkSystemStatus() {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            const startBtn = document.getElementById('start-system-btn');
+            if (data.credentials_loaded && data.tweets_loaded) {
+                startBtn.disabled = false;
+            } else {
+                startBtn.disabled = true;
+            }
+        }
+
+        document.getElementById('upload-credentials-form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            showAlert(data.message, data.success ? 'success' : 'danger');
+            if (data.success) {
+                checkSystemStatus();
+                fetchCredentialsStatus();
+            }
+        });
+
+        document.getElementById('upload-tweets-form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            showAlert(data.message, data.success ? 'success' : 'danger');
+            if (data.success) {
+                checkSystemStatus();
+                fetchTweets();
+            }
+        });
+
+        document.getElementById('use-default-credentials').addEventListener('click', async () => {
+            const response = await fetch('/api/use_default_credentials', { method: 'POST' });
+            const data = await response.json();
+            showAlert(data.message, data.success ? 'success' : 'danger');
+            if (data.success) {
+                checkSystemStatus();
+                fetchCredentialsStatus();
+            }
+        });
+
+        document.getElementById('use-default-tweets').addEventListener('click', async () => {
+            const response = await fetch('/api/use_default_tweets', { method: 'POST' });
+            const data = await response.json();
+            showAlert(data.message, data.success ? 'success' : 'danger');
+            if (data.success) {
+                checkSystemStatus();
+                fetchTweets();
+            }
+        });
+
+        document.getElementById('start-system-btn').addEventListener('click', async () => {
+            const response = await fetch('/api/start_system', { method: 'POST' });
+            const data = await response.json();
+            showAlert(data.message, data.success ? 'success' : 'danger');
+            if (data.success) {
+                document.getElementById('system-state').textContent = 'Started';
+            }
+        });
+
+        checkSystemStatus();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

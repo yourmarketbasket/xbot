@@ -48,24 +48,30 @@ HARDCODED_TWEETS = [
 ]
 
 # Load credentials from Excel file
-def load_credentials():
+def load_credentials(filepath=None):
     """
     Loads credentials from an Excel file and validates them.
+
+    Args:
+        filepath (str, optional): Path to the credentials file. Defaults to None.
 
     Returns:
         list: A list of valid credentials, or an empty list if errors occur.
     """
+    if filepath is None:
+        filepath = app.config['CREDENTIALS_FILE']
+
     try:
-        if not os.path.exists(app.config['CREDENTIALS_FILE']):
-            print(f"Error: Credentials file '{app.config['CREDENTIALS_FILE']}' not found.")
+        if not os.path.exists(filepath):
+            print(f"Error: Credentials file '{filepath}' not found.")
             return []
 
-        df = pd.read_excel(app.config['CREDENTIALS_FILE'], sheet_name='Sheet1')
+        df = pd.read_excel(filepath, sheet_name='Sheet1')
         required_columns = ['Email', 'API KEY', 'API KEY SECRET', 'ACCESS TOKEN', 'ACCESS TOKEN SECRET']
 
         if not all(col in df.columns for col in required_columns):
             missing_cols = [col for col in required_columns if col not in df.columns]
-            print(f"Error: Missing required columns in '{app.config['CREDENTIALS_FILE']}': {', '.join(missing_cols)}")
+            print(f"Error: Missing required columns in '{filepath}': {', '.join(missing_cols)}")
             return []
 
         # Drop rows with any missing values in the required columns
@@ -140,25 +146,13 @@ def basename_filter(path):
     return os.path.basename(path) if path else 'None'
 
 # Load initial tweet storage
-media_files = get_media_files()
-tweets = [
-    {
-        'id': i + 1,
-        'message': msg,
-        'media_path': random.choice(media_files) if media_files else None,
-        'posted': False,
-        'scheduled_time': None,
-        'tweet_id': None,
-        'posted_by': [],
-        'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
-    } for i, msg in enumerate(HARDCODED_TWEETS)
-]
+tweets = []
+if os.path.exists(app.config['TWEET_STORAGE']):
+    with open(app.config['TWEET_STORAGE'], 'r') as f:
+        tweets = json.load(f)
 
 # Initialize scheduled tweets array
 scheduled_tweets = []
-
-# Save initial tweets
-save_tweets_to_file(tweets)
 
 # Register custom Jinja2 filter
 app.jinja_env.filters['basename'] = basename_filter
@@ -448,8 +442,15 @@ def schedule_and_post_tweets():
         time.sleep(600)
 
 # Start background threads
-threading.Thread(target=check_credential_health, daemon=True).start()
-threading.Thread(target=schedule_and_post_tweets, daemon=True).start()
+@app.route('/api/start_system', methods=['POST'])
+def start_system():
+    if not credentials or not tweets:
+        return jsonify({'success': False, 'message': 'Credentials and tweets must be loaded first.'}), 400
+
+    threading.Thread(target=schedule_and_post_tweets, daemon=True).start()
+    threading.Thread(target=check_credential_health, daemon=True).start()
+
+    return jsonify({'success': True, 'message': 'System started successfully.'})
 
 # API endpoint to get all tweets
 @app.route('/api/tweets', methods=['GET'])
@@ -591,6 +592,106 @@ def system_status():
         'next_post_on': nairobi_time,
         'quarantined_credentials': quarantined
     })
+
+# New endpoint for file uploads and verification
+@app.route('/api/upload', methods=['POST'])
+def upload_files():
+    global credentials, tweets
+
+    # Handle credential file upload
+    if 'credentials' in request.files:
+        credential_file = request.files['credentials']
+        if credential_file.filename == '':
+            return jsonify({'success': False, 'message': 'No selected file for credentials.'}), 400
+
+        try:
+            # Save the uploaded file temporarily
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_credentials.xlsx')
+            credential_file.save(filepath)
+
+            # Validate and load credentials
+            loaded_credentials = load_credentials(filepath)
+            if not loaded_credentials:
+                return jsonify({'success': False, 'message': 'Invalid or empty credentials file.'}), 400
+
+            credentials = loaded_credentials
+            return jsonify({'success': True, 'message': 'Credentials uploaded and verified successfully.'})
+
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error processing credentials file: {str(e)}'}), 500
+
+    # Handle tweet file upload
+    if 'tweets' in request.files:
+        tweet_file = request.files['tweets']
+        if tweet_file.filename == '':
+            return jsonify({'success': False, 'message': 'No selected file for tweets.'}), 400
+
+        try:
+            # Read and parse the tweet file
+            tweet_content = tweet_file.read().decode('utf-8')
+            tweet_data = json.loads(tweet_content)
+
+            if not isinstance(tweet_data, list) or not all(isinstance(t, str) for t in tweet_data):
+                return jsonify({'success': False, 'message': 'Tweets must be an array of strings.'}), 400
+
+            # Format tweets
+            tweets = [
+                {
+                    'id': i + 1,
+                    'message': msg,
+                    'media_path': None, # No media for uploaded tweets
+                    'posted': False,
+                    'scheduled_time': None,
+                    'tweet_id': None,
+                    'posted_by': [],
+                    'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
+                } for i, msg in enumerate(tweet_data)
+            ]
+            save_tweets_to_file(tweets)
+
+            return jsonify({'success': True, 'message': 'Tweets uploaded and verified successfully.'})
+
+        except json.JSONDecodeError:
+            return jsonify({'success': False, 'message': 'Invalid JSON format for tweets.'}), 400
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error processing tweets file: {str(e)}'}), 500
+
+    return jsonify({'success': False, 'message': 'No files were uploaded.'}), 400
+
+# New endpoint to check for credentials and tweets
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    return jsonify({
+        'credentials_loaded': len(credentials) > 0,
+        'tweets_loaded': len(tweets) > 0,
+    })
+
+@app.route('/api/use_default_credentials', methods=['POST'])
+def use_default_credentials():
+    global credentials
+    credentials = load_credentials()
+    if credentials:
+        return jsonify({'success': True, 'message': 'Default credentials loaded successfully.'})
+    return jsonify({'success': False, 'message': 'Failed to load default credentials.'})
+
+@app.route('/api/use_default_tweets', methods=['POST'])
+def use_default_tweets():
+    global tweets
+    media_files = get_media_files()
+    tweets = [
+        {
+            'id': i + 1,
+            'message': msg,
+            'media_path': random.choice(media_files) if media_files else None,
+            'posted': False,
+            'scheduled_time': None,
+            'tweet_id': None,
+            'posted_by': [],
+            'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
+        } for i, msg in enumerate(HARDCODED_TWEETS)
+    ]
+    save_tweets_to_file(tweets)
+    return jsonify({'success': True, 'message': 'Default tweets loaded successfully.'})
 
 # Main route
 @app.route('/', methods=['GET'])
