@@ -73,6 +73,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: inline-block;
         }
         .ellipsis-btn {
             cursor: pointer;
@@ -451,15 +452,14 @@
                 } else {
                     messageCell.textContent = tweet.message;
                 }
-
                 row.appendChild(messageCell);
 
                 const mediaCell = document.createElement('td');
-                mediaCell.innerHTML = `${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}`;
+                mediaCell.innerHTML = tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None';
                 row.appendChild(mediaCell);
 
                 const scheduledTimeCell = document.createElement('td');
-                scheduledTimeCell.innerHTML = `${tweet.scheduled_time ? '✔️ ' + new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : '❌'}`;
+                scheduledTimeCell.innerHTML = tweet.scheduled_time ? '✔️ ' + new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : '❌';
                 row.appendChild(scheduledTimeCell);
 
                 const countdownCell = document.createElement('td');
@@ -469,7 +469,7 @@
                 row.appendChild(countdownCell);
 
                 const statusCell = document.createElement('td');
-                statusCell.innerHTML = `${tweet.posted ? '✔️' : tweet.scheduled_time ? '✔️' : '❌'}`;
+                statusCell.innerHTML = tweet.posted ? '✔️' : tweet.scheduled_time ? '✔️' : '❌';
                 row.appendChild(statusCell);
 
                 const postedByCell = document.createElement('td');
@@ -478,7 +478,7 @@
                 row.appendChild(postedByCell);
 
                 const actionCell = document.createElement('td');
-                actionCell.innerHTML = `${tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`}`;
+                actionCell.innerHTML = tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`;
                 row.appendChild(actionCell);
 
                 tbody.appendChild(row);
