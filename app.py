@@ -177,6 +177,8 @@ def get_twitter_conn_v1(credential_index):
         print(f"Error verifying credentials for {creds['Email']} (v1) via proxy: {str(e)}")
         return None
 
+import requests
+
 def get_twitter_conn_v2(credential_index):
     creds = get_current_credentials(credential_index)
     if not creds:
@@ -186,23 +188,17 @@ def get_twitter_conn_v2(credential_index):
     proxy = get_proxy()
 
     try:
-        # For v2 client, proxy needs to be set on the session
-        session = tweepy.OAuth1UserHandler(
-            creds['API KEY'],
-            creds['API KEY SECRET'],
-            creds['ACCESS TOKEN'],
-            creds['ACCESS TOKEN SECRET']
-        ).get_session()
+        # For v2, we need to create a session and pass it to the client
+        session = requests.Session()
         session.proxies = proxy
 
         client = tweepy.Client(
             consumer_key=creds['API KEY'],
             consumer_secret=creds['API KEY SECRET'],
             access_token=creds['ACCESS TOKEN'],
-            access_token_secret=creds['ACCESS TOKEN SECRET']
+            access_token_secret=creds['ACCESS TOKEN SECRET'],
+            session=session
         )
-        # Manually set the session on the client's underlying http client
-        client.session = session
 
         client.get_me()
         print(f"OAuth 1.0a v2 client initialized for {creds['Email']} via proxy {proxy['https']}")
