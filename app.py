@@ -285,6 +285,7 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
         except tweepy.TweepyException as e:
             if e.response and e.response.status_code == 429:
                 print(f"Rate limit hit (429) for {creds['Email']}. Switching credentials.")
+                return 'rate_limited', None
             else:
                 print(f"Error posting tweet with {creds['Email']}: {str(e)}")
             switch_credentials()
@@ -338,6 +339,7 @@ def schedule_and_post_tweets():
     global scheduled_tweets, current_credential_index, next_post_time
     posted_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
     next_post_time = None
+    backoff_time = 60  # Initial backoff time in seconds
 
     while True:
         now = datetime.now(UTC)
@@ -371,14 +373,20 @@ def schedule_and_post_tweets():
                         except ValueError:
                             continue
 
-                        success, _ = post_tweet(tweet_id=tweet_to_post['id'])
+                        status, _ = post_tweet(tweet_id=tweet_to_post['id'])
 
                         current_credential_index = original_index
 
-                    if success:
+                    if status == 'rate_limited':
+                        print(f"Rate limited. Backing off for {backoff_time} seconds.")
+                        time.sleep(backoff_time)
+                        backoff_time = min(backoff_time * 2, 3600) # Exponential backoff with a max of 1 hour
+                        continue
+                    elif status:
                         posted_counts[email]['count'] += 1
                         print(f"Posted tweet {tweet_to_post['id']} with {email}. Total for {email} today: {posted_counts[email]['count']}/17")
                         next_post_time = None
+                        backoff_time = 60 # Reset backoff time on success
 
         time.sleep(600)
 
