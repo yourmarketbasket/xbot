@@ -202,8 +202,12 @@ def get_twitter_conn_v2(credential_index):
         client.get_me()
         print(f"OAuth 1.0a v2 client initialized for {creds['Email']}")
         return client
-    except Exception as e:
-        print(f"Error initializing v2 client for {creds['Email']}: {str(e)}")
+    except tweepy.errors.TweepyException as e:
+        if e.response and e.response.status_code == 429:
+            print(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
+            quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=12)
+        else:
+            print(f"Error initializing v2 client for {creds['Email']}: {str(e)}")
         return None
 
 # Validate file extension and size
@@ -318,7 +322,7 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
             posted_tweet_ids.append(response.data['id'])
             posted_emails.append(creds['Email'])
             tweet_counts[creds['Email']]['count'] += 1
-        except tweepy.TweepyException as e:
+        except tweepy.errors.TweepyException as e:
             if e.response and e.response.status_code == 429:
                 print(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
                 quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=12)
@@ -539,8 +543,10 @@ def post_tweet_now():
 # API endpoint to send tweet immediately
 @app.route('/api/send/<int:tweet_id>', methods=['POST'])
 def send_tweet(tweet_id):
-    success, posted_tweet_id = post_tweet(tweet_id)
-    if success:
+    status, posted_tweet_id = post_tweet(tweet_id)
+    if status == 'rate_limited':
+        return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id}. Rate limit hit.'}), 500
+    elif status:
         global scheduled_tweets
         scheduled_tweets[:] = [t for t in scheduled_tweets if t['id'] != tweet_id]
         return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully!'})
