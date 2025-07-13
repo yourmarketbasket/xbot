@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Chatter Tweet Scheduler</title>
+    <title>Tweetbot</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -13,8 +13,8 @@
             color: #333;
         }
         .container-fluid {
-            width: 90%;
-            max-width: 1200px;
+            width: 80%;
+            max-width: 1400px;
             margin: 20px auto;
         }
         .form-control, .form-select {
@@ -131,6 +131,7 @@
         .pagination .page-item.active .page-link {
             background-color: #0d6efd;
             border-color: #0d6efd;
+            color: #fff;
         }
         .pagination .page-item.disabled .page-link {
             cursor: not-allowed;
@@ -211,15 +212,17 @@
 </head>
 <body>
     <div class="container-fluid">
-        <h1>Chatter Tweet Scheduler</h1>
+        <h1>Tweetbot</h1>
         <div id="alerts"></div>
 
         <!-- Status Card for Credential and Scheduling Info -->
         <div class="status-card">
             <h5>System Status</h5>
-            <p><strong>Automatic Scheduling:</strong> 6 tweets scheduled every hour, starting next hour.</p>
+            <p><strong>Automatic Scheduling:</strong> Up to 17 random tweets posted daily per credential.</p>
+            <p><strong>Next Post On:</strong> <span id="next-post-on">Loading...</span> (Nairobi Time)</p>
             <p><strong>Active Credential:</strong> <span id="active-credential">Loading...</span></p>
             <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
+            <p><strong>Quarantined Credentials:</strong> <span id="quarantined-credentials">None</span></p>
         </div>
 
         <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
@@ -235,17 +238,19 @@
             <!-- Schedule Tweets Tab -->
             <div class="tab-pane fade show active" id="schedule" role="tabpanel" aria-labelledby="schedule-tab">
                 <form id="schedule-form">
-                    <div class="mb-3">
-                        <label for="num_posts" class="form-label">Number of Posts (1-20)</label>
-                        <input type="number" name="num_posts" id="num_posts" class="form-control" min="1" max="20" placeholder="Enter number of posts" required>
+                    <div class="row align-items-end">
+                        <div class="col-md-4 mb-3">
+                            <label for="num_posts" class="form-label">Number of Posts (1-20)</label>
+                            <input type="number" name="num_posts" id="num_posts" class="form-control" min="1" max="20" placeholder="Enter number of posts" required>
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label for="scheduled_time" class="form-label">Schedule Posting Time</label>
+                            <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <button type="submit" class="btn btn-primary w-100">Schedule Tweets</button>
+                        </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="scheduled_time" class="form-label">Schedule Posting Time</label>
-                        <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary">Schedule Tweets</button>
                 </form>
                 
                 <h2>All Tweets</h2>
@@ -313,16 +318,26 @@
         }
 
         function formatCountdown(scheduledTime) {
-            if (!scheduledTime) return 'N/A';
+            if (!scheduledTime || scheduledTime === 'null') return '---';
             const now = new Date();
             const scheduled = new Date(scheduledTime);
+            if (isNaN(scheduled.getTime())) {
+                return '---';
+            }
             const diffMs = scheduled - now;
             if (diffMs <= 0) return 'Expired';
+
             const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            if (days > 0) return `${days}d`;
+
             const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            if (hours > 0) return `${hours}h`;
+
             const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            if (minutes > 0) return `${minutes}m`;
+
             const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-            return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+            return `${seconds}s`;
         }
 
         async function fetchCredentialsStatus() {
@@ -340,6 +355,29 @@
                 document.getElementById('total-credentials').textContent = 'Error';
             }
         }
+
+        // Periodically update the credentials status
+        setInterval(fetchCredentialsStatus, 5000); // Update every 5 seconds
+
+        async function fetchSystemStatus() {
+            try {
+                const response = await fetch('/api/system_status');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                document.getElementById('next-post-on').textContent = data.next_post_on;
+                const quarantined = data.quarantined_credentials.join(', ') || 'None';
+                document.getElementById('quarantined-credentials').textContent = quarantined;
+            } catch (error) {
+                console.error('Error fetching system status:', error);
+                document.getElementById('next-post-on').textContent = 'Error';
+                document.getElementById('quarantined-credentials').textContent = 'Error';
+            }
+        }
+
+        // Periodically update the system status
+        setInterval(fetchSystemStatus, 5000);
 
         async function fetchTweets(page = currentPage) {
             try {

@@ -72,6 +72,7 @@ def load_credentials():
 credentials = load_credentials()
 current_credential_index = 0
 credential_lock = threading.Lock()
+quarantined_credentials = {} # email -> quarantine_until_datetime
 
 # Get current Twitter/X API credentials
 def get_current_credentials(index=None):
@@ -129,7 +130,7 @@ tweets = [
         'posted': False,
         'scheduled_time': None,
         'tweet_id': None,
-        'posted_by': [],  # List to store emails of accounts that posted the tweet
+        'posted_by': [],
         'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
     } for i, msg in enumerate(HARDCODED_TWEETS)
 ]
@@ -143,6 +144,17 @@ save_tweets_to_file(tweets)
 # Register custom Jinja2 filter
 app.jinja_env.filters['basename'] = basename_filter
 
+# Proxy configuration
+PROXY_HOST = "geo.iproyal.com"
+PROXY_PORTS = [12321, 11200, 11201, 11202, 11203]
+PROXY_USER = "xKplVa24ZiRopAv2"
+PROXY_PASS = "jkYc1AhYXG8ASwA1"
+
+def get_proxy():
+    port = random.choice(PROXY_PORTS)
+    proxy_url = f"http://{PROXY_USER}:{PROXY_PASS}@{PROXY_HOST}:{port}"
+    return {"http": proxy_url, "https": proxy_url}
+
 # Twitter/X API connections
 def get_twitter_conn_v1(credential_index):
     creds = get_current_credentials(credential_index)
@@ -150,18 +162,19 @@ def get_twitter_conn_v1(credential_index):
         print("No credentials available for v1 connection.")
         return None
     try:
+        proxy = get_proxy()
         auth = tweepy.OAuth1UserHandler(
             creds['API KEY'],
             creds['API KEY SECRET'],
             creds['ACCESS TOKEN'],
             creds['ACCESS TOKEN SECRET']
         )
-        api = tweepy.API(auth, wait_on_rate_limit=False)
+        api = tweepy.API(auth, wait_on_rate_limit=False, proxy=proxy['https'])
         api.verify_credentials()
-        print(f"Credentials for {creds['Email']} verified successfully for v1")
+        print(f"Credentials for {creds['Email']} verified successfully for v1 via proxy {proxy['https']}")
         return api
-    except tweepy.TweepyException as e:
-        print(f"Error verifying credentials for {creds['Email']} (v1): {str(e)}")
+    except Exception as e:
+        print(f"Error verifying credentials for {creds['Email']} (v1) via proxy: {str(e)}")
         return None
 
 def get_twitter_conn_v2(credential_index):
@@ -170,6 +183,7 @@ def get_twitter_conn_v2(credential_index):
         print("No credentials available for v2 connection.")
         return None
     try:
+        proxy = get_proxy()
         client = tweepy.Client(
             consumer_key=creds['API KEY'],
             consumer_secret=creds['API KEY SECRET'],
@@ -177,10 +191,10 @@ def get_twitter_conn_v2(credential_index):
             access_token_secret=creds['ACCESS TOKEN SECRET']
         )
         client.get_me()
-        print(f"OAuth 1.0a v2 client initialized for {creds['Email']}")
+        print(f"OAuth 1.0a v2 client initialized for {creds['Email']} via proxy {proxy['https']}")
         return client
-    except tweepy.TweepyException as e:
-        print(f"Error initializing v2 client for {creds['Email']}: {str(e)}")
+    except Exception as e:
+        print(f"Error initializing v2 client for {creds['Email']} via proxy: {str(e)}")
         return None
 
 # Validate file extension and size
@@ -208,14 +222,13 @@ def credentials_status():
         'total_credentials': len(credentials)
     })
 
-# Post tweet with optional media to at least three accounts
+# Post tweet with optional media
 def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
     global current_credential_index
-    target_accounts = min(3, len(credentials)) if credentials else 0
-    if target_accounts < 3:
-        print(f"Warning: Only {target_accounts} credentials available, need at least 3.")
+    if not credentials:
+        print("Warning: No credentials available.")
         return False, None
-    
+
     tweet = None
     if is_instant and message:
         tweet_text = message
@@ -226,111 +239,151 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
             return False, None
         tweet_text = tweet['message']
         media_path = tweet['media_path']
-    
+
     if random.random() < 0.5:
         tweet_text += " " + random.choice(EXTRA_HASHTAGS)
     if len(tweet_text) > 280:
         tweet_text = tweet_text[:277] + "..."
-    
+
     posted_tweet_ids = []
     posted_emails = []
-    used_indices = []
-    attempts_per_credential = 2  # Allow retry on 429 for each credential
-    start_index = current_credential_index
     
-    for i in range(len(credentials)):
-        credential_index = (start_index + i) % len(credentials)
-        if len(posted_emails) >= target_accounts:
-            break
-        if credential_index in used_indices:
+    for _ in range(len(credentials)):
+        creds = get_current_credentials()
+        if not creds:
+            switch_credentials()
             continue
-        
-        for attempt in range(attempts_per_credential):
-            client_v1 = get_twitter_conn_v1(credential_index)
-            client_v2 = get_twitter_conn_v2(credential_index)
-            if not client_v2 or not client_v1:
-                print(f"Failed to initialize Twitter clients for credential {credential_index + 1}")
-                break
-            
-            media_ids = None
-            if media_path and os.path.exists(media_path):
-                try:
-                    file_size = os.path.getsize(media_path)
-                    if not allowed_file(media_path, file_size):
-                        raise ValueError(f"Invalid media file: {media_path}. Check extension or size.")
-                    print(f"Uploading media: {media_path} for credential {credential_index + 1}")
-                    media = client_v1.media_upload(filename=media_path)
-                    media_ids = [media.media_id_string]
-                    print(f"Media uploaded: {media.media_id_string}")
-                except (tweepy.TweepyException, ValueError) as e:
-                    print(f"Error uploading media for credential {credential_index + 1}: {str(e)}")
-                    break
-            
+
+        client_v1 = get_twitter_conn_v1(current_credential_index)
+        client_v2 = get_twitter_conn_v2(current_credential_index)
+
+        if not client_v1 or not client_v2:
+            print(f"Failed to initialize Twitter clients for {creds['Email']}. Switching credentials.")
+            switch_credentials()
+            continue
+
+        media_ids = None
+        if media_path and os.path.exists(media_path):
             try:
-                response = client_v2.create_tweet(text=tweet_text, media_ids=media_ids)
-                print(f"Tweet posted by {credentials[credential_index]['Email']}: https://x.com/user/status/{response.data['id']}")
-                posted_tweet_ids.append(response.data['id'])
-                posted_emails.append(credentials[credential_index]['Email'])
-                used_indices.append(credential_index)
-                break
-            except tweepy.TweepyException as e:
-                if e.response and e.response.status_code == 429:
-                    print(f"Rate limit hit (429) for credential {credential_index + 1}. Retrying or switching.")
-                    if attempt < attempts_per_credential - 1:
-                        time.sleep(1)
-                        continue
-                    break
-                else:
-                    print(f"Error posting tweet for credential {credential_index + 1}: {str(e)}")
-                    break
-    
-    if len(posted_emails) >= target_accounts:
+                file_size = os.path.getsize(media_path)
+                if not allowed_file(media_path, file_size):
+                    raise ValueError(f"Invalid media file: {media_path}. Check extension or size.")
+                print(f"Uploading media: {media_path} with {creds['Email']}")
+                media = client_v1.media_upload(filename=media_path)
+                media_ids = [media.media_id_string]
+                print(f"Media uploaded: {media.media_id_string}")
+            except (tweepy.TweepyException, ValueError) as e:
+                print(f"Error uploading media with {creds['Email']}: {str(e)}")
+                switch_credentials()
+                continue
+
+        try:
+            response = client_v2.create_tweet(text=tweet_text, media_ids=media_ids)
+            print(f"Tweet posted by {creds['Email']}: https://x.com/user/status/{response.data['id']}")
+            posted_tweet_ids.append(response.data['id'])
+            posted_emails.append(creds['Email'])
+        except tweepy.TweepyException as e:
+            if e.response and e.response.status_code == 429:
+                print(f"Rate limit hit (429) for {creds['Email']}. Switching credentials.")
+            else:
+                print(f"Error posting tweet with {creds['Email']}: {str(e)}")
+            switch_credentials()
+            continue
+
+        switch_credentials()
+
         if tweet:
             tweet['posted'] = True
             tweet['scheduled_time'] = datetime.now(UTC).isoformat()
-            tweet['tweet_id'] = posted_tweet_ids[0]  # Store first tweet ID for reference
+            tweet['tweet_id'] = posted_tweet_ids[0]
             tweet['posted_by'] = posted_emails
             save_tweets_to_file(tweets)
         return True, posted_tweet_ids[0]
-    else:
-        print(f"Failed to post tweet to at least 3 accounts. Posted to {len(posted_emails)} accounts: {posted_emails}")
-        return False, None
 
-# Background thread to schedule and post 6 tweets every hour
-def schedule_and_post_tweets():
-    global scheduled_tweets
+    print(f"Failed to post tweet. All credentials failed.")
+    return False, None
+
+# Credential health check
+def check_credential_health():
+    global quarantined_credentials
     while True:
         now = datetime.now(UTC)
-        next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-        available_tweets = [t for t in tweets if not t['posted'] and t['scheduled_time'] is None]
-        if len(available_tweets) >= 6:
-            selected_tweets = random.sample(available_tweets, 6)
-            interval = timedelta(minutes=10)  # 6 tweets per hour = 1 every 10 minutes
-            for i, tweet in enumerate(selected_tweets):
-                scheduled_time = (next_hour + i * interval).isoformat()
-                tweet['scheduled_time'] = scheduled_time
-                scheduled_tweets.append({
-                    'id': tweet['id'],
-                    'message': tweet['message'],
-                    'media_path': tweet['media_path'],
-                    'scheduled_time': scheduled_time,
-                    'posted': False
-                })
-                print(f"Scheduled tweet {tweet['id']} at {scheduled_time}")
-            save_tweets_to_file(tweets)
-        
-        # Check and post scheduled tweets
-        for scheduled_tweet in scheduled_tweets[:]:
-            scheduled_dt = datetime.fromisoformat(scheduled_tweet['scheduled_time'])
-            if scheduled_dt <= now and not scheduled_tweet['posted']:
-                success, posted_tweet_id = post_tweet(tweet_id=scheduled_tweet['id'])
-                if success:
-                    scheduled_tweets.remove(scheduled_tweet)
-                    print(f"Tweet {scheduled_tweet['id']} posted from scheduled queue to at least 3 accounts.")
-        
-        time.sleep(60)  # Check every minute
+        for email, quarantine_until in list(quarantined_credentials.items()):
+            if now >= quarantine_until:
+                print(f"Removing {email} from quarantine.")
+                del quarantined_credentials[email]
 
-# Start background thread for scheduling and posting tweets
+        for cred in credentials:
+            email = cred['Email']
+            if email in quarantined_credentials:
+                continue
+
+            try:
+                client_v2 = get_twitter_conn_v2([c['Email'] for c in credentials].index(email))
+                if not client_v2:
+                    raise tweepy.TweepyException("Failed to initialize client")
+                client_v2.get_me()
+            except tweepy.TweepyException as e:
+                if hasattr(e, 'response') and e.response and e.response.status_code == 429:
+                    quarantine_until = now + timedelta(hours=1)
+                    quarantined_credentials[email] = quarantine_until
+                    print(f"Credential {email} hit rate limit (429). Quarantined until {quarantine_until.isoformat()}.")
+                else:
+                    print(f"Error with credential {email}: {e}")
+
+        time.sleep(3600) # Check health every hour
+
+# Background thread to schedule and post 17 tweets per day per credential
+def schedule_and_post_tweets():
+    global scheduled_tweets, current_credential_index, next_post_time
+    posted_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
+    next_post_time = None
+
+    while True:
+        now = datetime.now(UTC)
+        
+        active_credentials = [c for c in credentials if c['Email'] not in quarantined_credentials]
+        if not active_credentials:
+            time.sleep(600)
+            continue
+
+        for cred in active_credentials:
+            email = cred['Email']
+            if now.date() > posted_counts[email]['date']:
+                posted_counts[email]['count'] = 0
+                posted_counts[email]['date'] = now.date()
+
+            if posted_counts[email]['count'] < 17:
+                available_tweets = [t for t in tweets if not t['posted'] and t['scheduled_time'] is None]
+                if available_tweets:
+                    tweet_to_post = random.choice(available_tweets)
+
+                    delay = random.randint(1800, 3600)
+                    next_post_time = (now + timedelta(seconds=delay)).isoformat()
+                    print(f"Next post scheduled around {next_post_time} with {email}")
+                    time.sleep(delay)
+
+                    with credential_lock:
+                        original_index = current_credential_index
+                        try:
+                            cred_index = [c['Email'] for c in credentials].index(email)
+                            current_credential_index = cred_index
+                        except ValueError:
+                            continue
+
+                        success, _ = post_tweet(tweet_id=tweet_to_post['id'])
+
+                        current_credential_index = original_index
+
+                    if success:
+                        posted_counts[email]['count'] += 1
+                        print(f"Posted tweet {tweet_to_post['id']} with {email}. Total for {email} today: {posted_counts[email]['count']}/17")
+                        next_post_time = None
+
+        time.sleep(600)
+
+# Start background threads
+threading.Thread(target=check_credential_health, daemon=True).start()
 threading.Thread(target=schedule_and_post_tweets, daemon=True).start()
 
 # API endpoint to get all tweets
@@ -423,6 +476,7 @@ def post_tweet_now():
     success, posted_tweet_id = post_tweet(message=message, media_path=media_path, is_instant=True)
     if success:
         max_id = max((t['id'] for t in tweets), default=0)
+        successful_credential_email = get_current_credentials()['Email']
         tweets.append({
             'id': max_id + 1,
             'message': message,
@@ -430,12 +484,12 @@ def post_tweet_now():
             'posted': True,
             'scheduled_time': datetime.now(UTC).isoformat(),
             'tweet_id': posted_tweet_id,
-            'posted_by': [],  # Will be updated in post_tweet
+            'posted_by': [successful_credential_email],
             'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
         })
         save_tweets_to_file(tweets)
-        return jsonify({'success': True, 'message': f'Tweet posted successfully to at least 3 accounts! View it at https://x.com/user/status/{posted_tweet_id}'})
-    return jsonify({'success': False, 'message': 'Failed to post tweet to at least 3 accounts.'}), 500
+        return jsonify({'success': True, 'message': f'Tweet posted successfully! View it at https://x.com/user/status/{posted_tweet_id}'})
+    return jsonify({'success': False, 'message': 'Failed to post tweet.'}), 500
 
 # API endpoint to send tweet immediately
 @app.route('/api/send/<int:tweet_id>', methods=['POST'])
@@ -444,8 +498,23 @@ def send_tweet(tweet_id):
     if success:
         global scheduled_tweets
         scheduled_tweets[:] = [t for t in scheduled_tweets if t['id'] != tweet_id]
-        return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully to at least 3 accounts!'})
-    return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id} to at least 3 accounts.'}), 500
+        return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully!'})
+    return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id}.'}), 500
+
+# API endpoint for system status
+@app.route('/api/system_status', methods=['GET'])
+def system_status():
+    global next_post_time
+    nairobi_time = "Not scheduled"
+    if next_post_time:
+        utc_time = datetime.fromisoformat(next_post_time)
+        nairobi_tz = timedelta(hours=3)
+        nairobi_time = (utc_time + nairobi_tz).strftime('%Y-%m-%d %H:%M:%S')
+
+    return jsonify({
+        'next_post_on': nairobi_time,
+        'quarantined_credentials': list(quarantined_credentials.keys())
+    })
 
 # Main route
 @app.route('/', methods=['GET'])
@@ -456,6 +525,4 @@ if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     if not credentials:
         print("Warning: No valid credentials loaded. Check credentials.xlsx file.")
-    if len(credentials) < 3:
-        print(f"Warning: Only {len(credentials)} credentials available. Need at least 3 to post tweets.")
     app.run(debug=True)
