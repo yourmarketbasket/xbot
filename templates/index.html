@@ -859,7 +859,7 @@
 
         socket.on('log_message', (msg) => {
             console.log('Received log:', msg.data);
-            consoleLog.innerHTML += msg.data + '\\n';
+            consoleLog.innerHTML += msg.data + '<br>';
             consoleLog.scrollTop = consoleLog.scrollHeight;
         });
     </script>
