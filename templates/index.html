@@ -454,14 +454,33 @@
 
                 row.appendChild(messageCell);
 
-                row.innerHTML += `
-                    <td>${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}</td>
-                    <td>${tweet.scheduled_time ? new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : 'Not Scheduled'}</td>
-                    <td class="countdown" data-scheduled-time="${tweet.scheduled_time}">${formatCountdown(tweet.scheduled_time)}</td>
-                    <td>${tweet.posted ? '✔️' : tweet.scheduled_time ? '✔️' : '❌'}</td>
-                    <td class="posted-by">${tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A'}</td>
-                    <td>${tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`}</td>
-                `;
+                const mediaCell = document.createElement('td');
+                mediaCell.innerHTML = `${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}`;
+                row.appendChild(mediaCell);
+
+                const scheduledTimeCell = document.createElement('td');
+                scheduledTimeCell.innerHTML = `${tweet.scheduled_time ? '✔️ ' + new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : '❌'}`;
+                row.appendChild(scheduledTimeCell);
+
+                const countdownCell = document.createElement('td');
+                countdownCell.className = 'countdown';
+                countdownCell.setAttribute('data-scheduled-time', tweet.scheduled_time);
+                countdownCell.textContent = formatCountdown(tweet.scheduled_time);
+                row.appendChild(countdownCell);
+
+                const statusCell = document.createElement('td');
+                statusCell.innerHTML = `${tweet.posted ? '✔️' : tweet.scheduled_time ? '✔️' : '❌'}`;
+                row.appendChild(statusCell);
+
+                const postedByCell = document.createElement('td');
+                postedByCell.className = 'posted-by';
+                postedByCell.textContent = tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A';
+                row.appendChild(postedByCell);
+
+                const actionCell = document.createElement('td');
+                actionCell.innerHTML = `${tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`}`;
+                row.appendChild(actionCell);
+
                 tbody.appendChild(row);
             });
             updatePagination('scheduled-pagination', page, totalPages);
