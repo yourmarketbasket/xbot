@@ -114,6 +114,7 @@ tweet_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} fo
 system_running = False  # System is not running by default
 config_confirmed = False
 tweet_source = 'hardcoded'
+next_post_time = None
 
 # Get current Twitter/X API credentials
 def get_current_credentials(index=None):
