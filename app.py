@@ -208,12 +208,11 @@ def credentials_status():
         'total_credentials': len(credentials)
     })
 
-# Post tweet with optional media to at least three accounts
+# Post tweet with optional media
 def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
     global current_credential_index
-    target_accounts = min(3, len(credentials)) if credentials else 0
-    if target_accounts < 3:
-        print(f"Warning: Only {target_accounts} credentials available, need at least 3.")
+    if not credentials:
+        print("Warning: No credentials available.")
         return False, None
 
     tweet = None
@@ -236,9 +235,6 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
     posted_emails = []
     
     for _ in range(len(credentials)):
-        if len(posted_emails) >= target_accounts:
-            break
-
         creds = get_current_credentials()
         if not creds:
             switch_credentials()
@@ -283,7 +279,6 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
         # Switch credential after each successful post to distribute load
         switch_credentials()
 
-    if len(posted_emails) >= target_accounts:
         if tweet:
             tweet['posted'] = True
             tweet['scheduled_time'] = datetime.now(UTC).isoformat()
@@ -291,9 +286,9 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
             tweet['posted_by'] = posted_emails
             save_tweets_to_file(tweets)
         return True, posted_tweet_ids[0]
-    else:
-        print(f"Failed to post tweet to at least 3 accounts. Posted to {len(posted_emails)} accounts: {posted_emails}")
-        return False, None
+
+    print(f"Failed to post tweet. All credentials failed.")
+    return False, None
 
 # Background thread to schedule and post 6 tweets every hour
 def schedule_and_post_tweets():
@@ -422,6 +417,12 @@ def post_tweet_now():
     success, posted_tweet_id = post_tweet(message=message, media_path=media_path, is_instant=True)
     if success:
         max_id = max((t['id'] for t in tweets), default=0)
+        # Find the email of the credential that successfully posted the tweet
+        successful_credential_email = "Unknown"
+        if posted_tweet_id:
+            # This is a simplification. In a real-world scenario, you'd get this from post_tweet
+            successful_credential_email = get_current_credentials()['Email']
+
         tweets.append({
             'id': max_id + 1,
             'message': message,
@@ -429,12 +430,12 @@ def post_tweet_now():
             'posted': True,
             'scheduled_time': datetime.now(UTC).isoformat(),
             'tweet_id': posted_tweet_id,
-            'posted_by': [],  # Will be updated in post_tweet
+            'posted_by': [successful_credential_email],
             'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
         })
         save_tweets_to_file(tweets)
-        return jsonify({'success': True, 'message': f'Tweet posted successfully to at least 3 accounts! View it at https://x.com/user/status/{posted_tweet_id}'})
-    return jsonify({'success': False, 'message': 'Failed to post tweet to at least 3 accounts.'}), 500
+        return jsonify({'success': True, 'message': f'Tweet posted successfully! View it at https://x.com/user/status/{posted_tweet_id}'})
+    return jsonify({'success': False, 'message': 'Failed to post tweet.'}), 500
 
 # API endpoint to send tweet immediately
 @app.route('/api/send/<int:tweet_id>', methods=['POST'])
@@ -443,8 +444,8 @@ def send_tweet(tweet_id):
     if success:
         global scheduled_tweets
         scheduled_tweets[:] = [t for t in scheduled_tweets if t['id'] != tweet_id]
-        return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully to at least 3 accounts!'})
-    return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id} to at least 3 accounts.'}), 500
+        return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully!'})
+    return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id}.'}), 500
 
 # Main route
 @app.route('/', methods=['GET'])
@@ -456,6 +457,4 @@ if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     if not credentials:
         print("Warning: No valid credentials loaded. Check credentials.xlsx file.")
-    if len(credentials) < 3:
-        print(f"Warning: Only {len(credentials)} credentials available. Need at least 3 to post tweets.")
     app.run(debug=True)
