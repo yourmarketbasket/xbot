@@ -314,9 +314,12 @@
         }
 
         function formatCountdown(scheduledTime) {
-            if (!scheduledTime) return '---';
+            if (!scheduledTime || scheduledTime === 'null') return '---';
             const now = new Date();
             const scheduled = new Date(scheduledTime);
+            if (isNaN(scheduled.getTime())) {
+                return '---';
+            }
             const diffMs = scheduled - now;
             if (diffMs <= 0) return 'Expired';
             const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
