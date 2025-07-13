@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Chatter Tweet Scheduler</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+        .container-fluid {
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+        .form-control, .form-select {
+            font-size: 0.95rem;
+            border-radius: 6px;
+            transition: border-color 0.2s ease;
+        }
+        .form-control:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        }
+        .alert {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            border-radius: 6px;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .btn {
+            font-size: 0.95rem;
+            border-radius: 6px;
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 0.85rem;
+        }
+        .table {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            font-size: 0.9rem;
+        }
+        .table th {
+            background-color: #e9ecef;
+            font-weight: 600;
+            padding: 12px;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            color: #495057;
+        }
+        .table td {
+            padding: 12px;
+            vertical-align: middle;
+            border-color: #dee2e6;
+        }
+        .table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+        .table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        .table .posted {
+            background-color: #e6f4ea;
+        }
+        .table .scheduled {
+            background-color: #fff3cd;
+        }
+        .posted-by {
+            max-width: 200px;
+            word-wrap: break-word;
+            font-size: 0.85rem;
+            color: #495057;
+        }
+        .nav-tabs {
+            border-bottom: 2px solid #dee2e6;
+        }
+        .nav-link {
+            font-weight: 500;
+            font-size: 0.95rem;
+            color: #495057;
+            padding: 10px 20px;
+            border-radius: 6px 6px 0 0;
+        }
+        .nav-link.active {
+            background-color: #fff;
+            border-color: #dee2e6 #dee2e6 #fff;
+            color: #0d6efd;
+        }
+        .tab-content {
+            padding: 25px;
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .media-link {
+            word-break: break-all;
+            font-size: 0.85rem;
+            color: #0d6efd;
+            text-decoration: none;
+        }
+        .media-link:hover {
+            text-decoration: underline;
+        }
+        .pagination {
+            margin-top: 20px;
+            justify-content: center;
+        }
+        .pagination .page-link {
+            font-size: 0.9rem;
+            color: #0d6efd;
+            border-radius: 6px;
+            margin: 0 3px;
+        }
+        .pagination .page-item.active .page-link {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .pagination .page-item.disabled .page-link {
+            cursor: not-allowed;
+            color: #6c757d;
+        }
+        .countdown {
+            font-size: 0.85rem;
+            color: #dc3545;
+            font-weight: 500;
+        }
+        .status-card {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .status-card h5 {
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: #343a40;
+        }
+        .status-card p {
+            margin: 5px 0;
+            font-size: 0.9rem;
+            color: #495057;
+        }
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #343a40;
+            margin-bottom: 20px;
+        }
+        h2 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #343a40;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        @media (max-width: 768px) {
+            .container-fluid {
+                width: 95%;
+            }
+            .form-control, .btn, .nav-link, .table th, .table td, .media-link, .pagination .page-link, .countdown, .status-card p {
+                font-size: 0.85rem;
+            }
+            .btn-sm {
+                padding: 4px 10px;
+            }
+            .posted-by {
+                max-width: 150px;
+            }
+        }
+        @media (max-width: 576px) {
+            .container-fluid {
+                width: 100%;
+                padding: 0 10px;
+            }
+            .form-control, .btn, .nav-link, .table th, .table td, .media-link, .pagination .page-link, .countdown, .status-card p {
+                font-size: 0.8rem;
+            }
+            .btn-sm {
+                padding: 3px 8px;
+            }
+            .posted-by {
+                max-width: 100px;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            h2 {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <h1>Chatter Tweet Scheduler</h1>
+        <div id="alerts"></div>
+
+        <!-- Status Card for Credential and Scheduling Info -->
+        <div class="status-card">
+            <h5>System Status</h5>
+            <p><strong>Automatic Scheduling:</strong> 6 tweets scheduled every hour, starting next hour.</p>
+            <p><strong>Active Credential:</strong> <span id="active-credential">Loading...</span></p>
+            <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
+        </div>
+
+        <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="schedule-tab" data-bs-toggle="tab" data-bs-target="#schedule" type="button" role="tab" aria-controls="schedule" aria-selected="true">Schedule Tweets</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="post-now-tab" data-bs-toggle="tab" data-bs-target="#post-now" type="button" role="tab" aria-controls="post-now" aria-selected="false">Post Tweet Now</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="tweetTabContent">
+            <!-- Schedule Tweets Tab -->
+            <div class="tab-pane fade show active" id="schedule" role="tabpanel" aria-labelledby="schedule-tab">
+                <form id="schedule-form">
+                    <div class="mb-3">
+                        <label for="num_posts" class="form-label">Number of Posts (1-20)</label>
+                        <input type="number" name="num_posts" id="num_posts" class="form-control" min="1" max="20" placeholder="Enter number of posts" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="scheduled_time" class="form-label">Schedule Posting Time</label>
+                        <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Schedule Tweets</button>
+                </form>
+                
+                <h2>All Tweets</h2>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm" id="scheduled-tweets-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Message</th>
+                                <th scope="col">Media</th>
+                                <th scope="col">Scheduled Time</th>
+                                <th scope="col">Countdown</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Posted By</th>
+                                <th scope="col">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduled-tweets-body"></tbody>
+                    </table>
+                </div>
+                
+                <nav aria-label="Tweet pagination">
+                    <ul class="pagination" id="scheduled-pagination"></ul>
+                </nav>
+            </div>
+
+            <!-- Post Tweet Now Tab -->
+            <div class="tab-pane fade" id="post-now" role="tabpanel" aria-labelledby="post-now-tab">
+                <form id="post-now-form" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Tweet Message</label>
+                        <textarea name="message" id="message" class="form-control" rows="3" maxlength="280" placeholder="Enter your tweet (max 280 characters)" required></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="media" class="form-label">Upload Media (optional, PNG/JPG/MP4/MOV, max 5MB for images, 512MB for videos)</label>
+                        <input type="file" name="media" id="media" class="form-control" accept=".png,.jpg,.jpeg,.mp4,.mov">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Post Tweet Now</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentPage = 1;
+        let countdownInterval;
+        let lastFetchTime = 0;
+        const FETCH_INTERVAL = 60000; // 1 minute
+
+        function showAlert(message, type) {
+            const alerts = document.getElementById('alerts');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} alert-dismissible fade show`;
+            alert.innerHTML = `
+                ${message.replace(/\n/g, '<br>')}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            alerts.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        function basename(path) {
+            return path ? path.split('/').pop() : 'None';
+        }
+
+        function formatCountdown(scheduledTime) {
+            if (!scheduledTime) return 'N/A';
+            const now = new Date();
+            const scheduled = new Date(scheduledTime);
+            const diffMs = scheduled - now;
+            if (diffMs <= 0) return 'Expired';
+            const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+            return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+        }
+
+        async function fetchCredentialsStatus() {
+            try {
+                const response = await fetch('/api/credentials_status');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                document.getElementById('active-credential').textContent = data.active_credential || 'Unknown';
+                document.getElementById('total-credentials').textContent = data.total_credentials || '0';
+            } catch (error) {
+                console.error('Error fetching credentials status:', error);
+                document.getElementById('active-credential').textContent = 'Error';
+                document.getElementById('total-credentials').textContent = 'Error';
+            }
+        }
+
+        async function fetchTweets(page = currentPage) {
+            try {
+                const response = await fetch(`/api/tweets?page=${page}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                updateTweets(data.tweets, data.page, data.total_pages);
+                lastFetchTime = Date.now();
+            } catch (error) {
+                console.error('Error fetching tweets:', error);
+                showAlert('Failed to load tweets due to network error.', 'danger');
+            }
+        }
+
+        function updateTweets(tweets, page, totalPages) {
+            currentPage = page;
+            const tbody = document.getElementById('scheduled-tweets-body');
+            tbody.innerHTML = '';
+            tweets.forEach(tweet => {
+                const row = document.createElement('tr');
+                row.className = tweet.posted ? 'posted' : tweet.scheduled_time ? 'scheduled' : '';
+                row.innerHTML = `
+                    <td>${tweet.message}</td>
+                    <td>${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}</td>
+                    <td>${tweet.scheduled_time ? new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : 'Not Scheduled'}</td>
+                    <td class="countdown" data-scheduled-time="${tweet.scheduled_time}">${formatCountdown(tweet.scheduled_time)}</td>
+                    <td>${tweet.posted ? 'Posted' : tweet.scheduled_time ? 'Scheduled' : 'Not Scheduled'}</td>
+                    <td class="posted-by">${tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A'}</td>
+                    <td>${tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            updatePagination('scheduled-pagination', page, totalPages);
+            updateCountdowns();
+        }
+
+        function updatePagination(elementId, currentPage, totalPages) {
+            const pagination = document.getElementById(elementId);
+            pagination.innerHTML = '';
+            if (totalPages <= 1) return;
+            
+            const prevLi = document.createElement('li');
+            prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+            prevLi.innerHTML = `<a class="page-link" href="javascript:void(0)" aria-label="Previous"><span aria-hidden="true">« Previous</span></a>`;
+            if (currentPage > 1) {
+                prevLi.addEventListener('click', () => fetchTweets(currentPage - 1));
+            }
+            pagination.appendChild(prevLi);
+            
+            for (let p = 1; p <= totalPages; p++) {
+                const li = document.createElement('li');
+                li.className = `page-item ${p === currentPage ? 'active' : ''}`;
+                li.innerHTML = `<a class="page-link" href="javascript:void(0)">${p}</a>`;
+                li.addEventListener('click', () => fetchTweets(p));
+                pagination.appendChild(li);
+            }
+            
+            const nextLi = document.createElement('li');
+            nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+            nextLi.innerHTML = `<a class="page-link" href="javascript:void(0)" aria-label="Next"><span aria-hidden="true">Next »</span></a>`;
+            if (currentPage < totalPages) {
+                nextLi.addEventListener('click', () => fetchTweets(currentPage + 1));
+            }
+            pagination.appendChild(nextLi);
+        }
+
+        function updateCountdowns() {
+            clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => {
+                const countdownCells = document.querySelectorAll('.countdown');
+                countdownCells.forEach(cell => {
+                    const scheduledTime = cell.getAttribute('data-scheduled-time');
+                    cell.textContent = formatCountdown(scheduledTime);
+                });
+                const now = new Date();
+                const hasExpiring = Array.from(countdownCells).some(cell => {
+                    const scheduledTime = cell.getAttribute('data-scheduled-time');
+                    if (!scheduledTime) return false;
+                    const diffMs = new Date(scheduledTime) - now;
+                    return diffMs <= 5000 && diffMs > 0;
+                });
+                if (hasExpiring) fetchTweets(currentPage);
+            }, 1000);
+        }
+
+        async function sendTweet(tweetId) {
+            try {
+                const response = await fetch(`/api/send/${tweetId}`, { method: 'POST' });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                if (data.success) {
+                    fetchTweets(currentPage);
+                    fetchCredentialsStatus();
+                }
+            } catch (error) {
+                console.error('Error sending tweet:', error);
+                showAlert('Failed to send tweet due to network error.', 'danger');
+            }
+        }
+
+        document.getElementById('schedule-form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            try {
+                const response = await fetch('/api/schedule', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                if (data.success) {
+                    e.target.reset();
+                    fetchTweets(currentPage);
+                }
+            } catch (error) {
+                console.error('Error scheduling tweets:', error);
+                showAlert('Failed to schedule tweets due to network error.', 'danger');
+            }
+        });
+
+        document.getElementById('post-now-form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            try {
+                const response = await fetch('/api/post_tweet', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                if (data.success) {
+                    e.target.reset();
+                    fetchTweets(currentPage);
+                    fetchCredentialsStatus();
+                }
+            } catch (error) {
+                console.error('Error posting tweet:', error);
+                showAlert('Failed to post tweet due to network error.', 'danger');
+            }
+        });
+
+        // Set minimum datetime for scheduler in EAT
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset() + 180); // Adjust for EAT (+3:00)
+        document.getElementById('scheduled_time').min = now.toISOString().slice(0, 16);
+
+        // Initial fetch of tweets and credentials status
+        fetchTweets();
+        fetchCredentialsStatus();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
