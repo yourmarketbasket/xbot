@@ -68,6 +68,56 @@
             vertical-align: middle;
             border-color: #dee2e6;
         }
+        .message-cell {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-block;
+        }
+        .ellipsis-btn {
+            cursor: pointer;
+            color: #0d6efd;
+            font-weight: bold;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1050;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            position: relative;
+        }
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-btn:hover,
+        .close-btn:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .modal-body img, .modal-body video {
+            max-width: 100%;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
         .table tbody tr {
             transition: background-color 0.2s ease;
         }
@@ -173,6 +223,9 @@
             margin-top: 30px;
             margin-bottom: 15px;
         }
+        .switch-credential-btn {
+            margin-left: 10px;
+        }
         @media (max-width: 768px) {
             .container-fluid {
                 width: 95%;
@@ -211,6 +264,12 @@
     </style>
 </head>
 <body>
+    <div id="messageModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <div class="modal-body"></div>
+        </div>
+    </div>
     <div class="container-fluid">
         <h1>Tweetbot</h1>
         <div id="alerts"></div>
@@ -220,7 +279,10 @@
             <h5>System Status</h5>
             <p><strong>Automatic Scheduling:</strong> Up to 17 random tweets posted daily per credential.</p>
             <p><strong>Next Post On:</strong> <span id="next-post-on">Loading...</span> (Nairobi Time)</p>
-            <p><strong>Active Credential:</strong> <span id="active-credential">Loading...</span></p>
+            <p>
+                <strong>Active Credential:</strong> <span id="active-credential">Loading...</span>
+                <button id="switch-credential-btn" class="btn btn-secondary btn-sm switch-credential-btn">Switch Credential</button>
+            </p>
             <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
             <p><strong>Quarantined Credentials:</strong> <span id="quarantined-credentials">None</span></p>
         </div>
@@ -401,20 +463,109 @@
             tweets.forEach(tweet => {
                 const row = document.createElement('tr');
                 row.className = tweet.posted ? 'posted' : tweet.scheduled_time ? 'scheduled' : '';
-                row.innerHTML = `
-                    <td>${tweet.message}</td>
-                    <td>${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}</td>
-                    <td>${tweet.scheduled_time ? new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : 'Not Scheduled'}</td>
-                    <td class="countdown" data-scheduled-time="${tweet.scheduled_time}">${formatCountdown(tweet.scheduled_time)}</td>
-                    <td>${tweet.posted ? 'Posted' : tweet.scheduled_time ? 'Scheduled' : 'Not Scheduled'}</td>
-                    <td class="posted-by">${tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A'}</td>
-                    <td>${tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`}</td>
-                `;
+
+                const messageCell = document.createElement('td');
+                const messageSpan = document.createElement('span');
+                messageSpan.className = 'message-cell';
+                messageSpan.textContent = tweet.message.length > 50 ? tweet.message.substring(0, 50) : tweet.message;
+                messageCell.appendChild(messageSpan);
+
+                if (tweet.message.length > 50) {
+                    const ellipsisBtn = document.createElement('span');
+                    ellipsisBtn.className = 'ellipsis-btn';
+                    ellipsisBtn.textContent = '...';
+                    ellipsisBtn.addEventListener('click', () => {
+                        showModal(tweet);
+                    });
+                    messageCell.appendChild(ellipsisBtn);
+                }
+                row.appendChild(messageCell);
+
+                const mediaCell = document.createElement('td');
+                mediaCell.innerHTML = tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None';
+                row.appendChild(mediaCell);
+
+                const scheduledTimeCell = document.createElement('td');
+                scheduledTimeCell.innerHTML = tweet.scheduled_time ? '✔️ ' + new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : '❌';
+                row.appendChild(scheduledTimeCell);
+
+                const countdownCell = document.createElement('td');
+                countdownCell.className = 'countdown';
+                countdownCell.setAttribute('data-scheduled-time', tweet.scheduled_time);
+                countdownCell.textContent = formatCountdown(tweet.scheduled_time);
+                row.appendChild(countdownCell);
+
+                const statusCell = document.createElement('td');
+                statusCell.innerHTML = tweet.posted ? '✔️' : tweet.scheduled_time ? '✔️' : '❌';
+                row.appendChild(statusCell);
+
+                const postedByCell = document.createElement('td');
+                postedByCell.className = 'posted-by';
+                postedByCell.textContent = tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A';
+                row.appendChild(postedByCell);
+
+                const actionCell = document.createElement('td');
+                actionCell.innerHTML = tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`;
+                row.appendChild(actionCell);
+
                 tbody.appendChild(row);
             });
             updatePagination('scheduled-pagination', page, totalPages);
             updateCountdowns();
         }
+
+        function showModal(tweet) {
+            const modal = document.getElementById('messageModal');
+            const modalBody = modal.querySelector('.modal-body');
+            modalBody.innerHTML = ''; // Clear previous content
+
+            const message = document.createElement('p');
+            message.textContent = tweet.message;
+            modalBody.appendChild(message);
+
+            if (tweet.media_path) {
+                const media_path = `/media/${basename(tweet.media_path)}`;
+                if (media_path.endsWith('.mp4') || media_path.endsWith('.mov')) {
+                    const video = document.createElement('video');
+                    video.src = media_path;
+                    video.controls = true;
+                    modalBody.appendChild(video);
+                } else {
+                    const img = document.createElement('img');
+                    img.src = media_path;
+                    modalBody.appendChild(img);
+                }
+            }
+
+            modal.style.display = 'block';
+
+            const closeBtn = modal.querySelector('.close-btn');
+            closeBtn.onclick = () => {
+                modal.style.display = 'none';
+            };
+
+            window.onclick = (event) => {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            };
+        }
+
+        async function switchCredential() {
+            try {
+                const response = await fetch('/api/switch_credential', { method: 'POST' });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                if (data.success) {
+                    fetchCredentialsStatus();
+                }
+            } catch (error) {
+                console.error('Error switching credential:', error);
+                showAlert('Failed to switch credential due to network error.', 'danger');
+            }
+        }
+
+        document.getElementById('switch-credential-btn').addEventListener('click', switchCredential);
 
         function updatePagination(elementId, currentPage, totalPages) {
             const pagination = document.getElementById(elementId);
