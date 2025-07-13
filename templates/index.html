@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -93,13 +94,15 @@
         }
         .modal-content {
             background-color: #fefefe;
-            margin: 15% auto;
+            margin: auto;
             padding: 20px;
             border: 1px solid #888;
             width: 80%;
             max-width: 500px;
             border-radius: 8px;
             position: relative;
+            top: 50%;
+            transform: translateY(-50%);
         }
         .close-btn {
             color: #aaa;
@@ -284,58 +287,64 @@
                 <button id="switch-credential-btn" class="btn btn-secondary btn-sm switch-credential-btn">Switch Credential</button>
             </p>
             <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
-            <p><strong>Quarantined Credentials:</strong> <span id="quarantined-credentials">None</span></p>
+                <p><strong>Quarantined Credentials:</strong></p>
+                <ul id="quarantined-list" class="list-group"></ul>
         </div>
 
         <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="schedule-tab" data-bs-toggle="tab" data-bs-target="#schedule" type="button" role="tab" aria-controls="schedule" aria-selected="true">Schedule Tweets</button>
+                <button class="nav-link active" id="all-tweets-tab" data-bs-toggle="tab" data-bs-target="#all-tweets" type="button" role="tab" aria-controls="all-tweets" aria-selected="true">All Tweets</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="scheduled-tweets-tab" data-bs-toggle="tab" data-bs-target="#scheduled-tweets" type="button" role="tab" aria-controls="scheduled-tweets" aria-selected="false">Scheduled Tweets</button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="post-now-tab" data-bs-toggle="tab" data-bs-target="#post-now" type="button" role="tab" aria-controls="post-now" aria-selected="false">Post Tweet Now</button>
             </li>
+             <li class="nav-item" role="presentation">
+                <button class="nav-link" id="schedule-new-tab" data-bs-toggle="tab" data-bs-target="#schedule-new" type="button" role="tab" aria-controls="schedule-new" aria-selected="false">Schedule New Tweets</button>
+            </li>
         </ul>
 
         <div class="tab-content" id="tweetTabContent">
-            <!-- Schedule Tweets Tab -->
-            <div class="tab-pane fade show active" id="schedule" role="tabpanel" aria-labelledby="schedule-tab">
-                <form id="schedule-form">
-                    <div class="row align-items-end">
-                        <div class="col-md-4 mb-3">
-                            <label for="num_posts" class="form-label">Number of Posts (1-20)</label>
-                            <input type="number" name="num_posts" id="num_posts" class="form-control" min="1" max="20" placeholder="Enter number of posts" required>
-                        </div>
-                        <div class="col-md-5 mb-3">
-                            <label for="scheduled_time" class="form-label">Schedule Posting Time</label>
-                            <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <button type="submit" class="btn btn-primary w-100">Schedule Tweets</button>
-                        </div>
-                    </div>
-                </form>
-                
+            <!-- All Tweets Tab -->
+            <div class="tab-pane fade show active" id="all-tweets" role="tabpanel" aria-labelledby="all-tweets-tab">
                 <h2>All Tweets</h2>
                 <div class="table-responsive">
-                    <table class="table table-bordered table-hover table-sm" id="scheduled-tweets-table">
+                    <table class="table table-bordered table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th scope="col">Message</th>
+                                <th scope="col">Media</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Posted By</th>
+                                <th scope="col">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-tweets-body"></tbody>
+                    </table>
+                </div>
+                <nav aria-label="Tweet pagination">
+                    <ul class="pagination" id="all-tweets-pagination"></ul>
+                </nav>
+            </div>
+
+            <!-- Scheduled Tweets Tab -->
+            <div class="tab-pane fade" id="scheduled-tweets" role="tabpanel" aria-labelledby="scheduled-tweets-tab">
+                <h2>Scheduled Tweets</h2>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm">
                         <thead>
                             <tr>
                                 <th scope="col">Message</th>
                                 <th scope="col">Media</th>
                                 <th scope="col">Scheduled Time</th>
                                 <th scope="col">Countdown</th>
-                                <th scope="col">Status</th>
-                                <th scope="col">Posted By</th>
-                                <th scope="col">Action</th>
                             </tr>
                         </thead>
                         <tbody id="scheduled-tweets-body"></tbody>
                     </table>
                 </div>
-                
-                <nav aria-label="Tweet pagination">
-                    <ul class="pagination" id="scheduled-pagination"></ul>
-                </nav>
             </div>
 
             <!-- Post Tweet Now Tab -->
@@ -351,7 +360,26 @@
                         <input type="file" name="media" id="media" class="form-control" accept=".png,.jpg,.jpeg,.mp4,.mov">
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">Post Tweet Now</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Post Tweet Now</button>
+                </form>
+            </div>
+
+            <!-- Schedule New Tweets Tab -->
+            <div class="tab-pane fade" id="schedule-new" role="tabpanel" aria-labelledby="schedule-new-tab">
+                <form id="schedule-form">
+                    <div class="row align-items-end">
+                        <div class="col-md-4 mb-3">
+                            <label for="num_posts" class="form-label">Number of Posts (1-20)</label>
+                            <input type="number" name="num_posts" id="num_posts" class="form-control" min="1" max="20" placeholder="Enter number of posts" required>
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label for="scheduled_time" class="form-label">Schedule Posting Time</label>
+                            <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <button type="submit" class="btn btn-primary w-100"><i class="fas fa-clock"></i> Schedule Tweets</button>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>
@@ -379,28 +407,30 @@
             return path ? path.split('/').pop() : 'None';
         }
 
-        function formatCountdown(scheduledTime) {
-            if (!scheduledTime || scheduledTime === 'null') return '---';
+        function formatCountdown(targetTime) {
+            if (!targetTime || targetTime === 'null') return '---';
             const now = new Date();
-            const scheduled = new Date(scheduledTime);
-            if (isNaN(scheduled.getTime())) {
+            const target = new Date(targetTime);
+            if (isNaN(target.getTime())) {
                 return '---';
             }
-            const diffMs = scheduled - now;
+            const diffMs = target - now;
             if (diffMs <= 0) return 'Expired';
 
             const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            if (days > 0) return `${days}d`;
-
             const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            if (hours > 0) return `${hours}h`;
-
             const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-            if (minutes > 0) return `${minutes}m`;
-
             const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-            return `${seconds}s`;
+
+            let countdown = '';
+            if (days > 0) countdown += `${days}d `;
+            if (hours > 0) countdown += `${hours}h `;
+            if (minutes > 0) countdown += `${minutes}m `;
+            countdown += `${seconds}s`;
+
+            return countdown.trim();
         }
+
 
         async function fetchCredentialsStatus() {
             try {
@@ -429,14 +459,31 @@
                 }
                 const data = await response.json();
                 document.getElementById('next-post-on').textContent = data.next_post_on;
-                const quarantined = data.quarantined_credentials.join(', ') || 'None';
-                document.getElementById('quarantined-credentials').textContent = quarantined;
+
+                const quarantinedList = document.getElementById('quarantined-list');
+                quarantinedList.innerHTML = '';
+                if (Object.keys(data.quarantined_credentials).length > 0) {
+                    for (const [email, until] of Object.entries(data.quarantined_credentials)) {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                        li.innerHTML = `
+                            <span>${email}</span>
+                            <span class="badge bg-danger rounded-pill countdown" data-countdown-to="${until}"></span>
+                        `;
+                        quarantinedList.appendChild(li);
+                    }
+                } else {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item';
+                    li.textContent = 'None';
+                    quarantinedList.appendChild(li);
+                }
             } catch (error) {
                 console.error('Error fetching system status:', error);
                 document.getElementById('next-post-on').textContent = 'Error';
-                document.getElementById('quarantined-credentials').textContent = 'Error';
             }
         }
+
 
         // Periodically update the system status
         setInterval(fetchSystemStatus, 5000);
@@ -448,7 +495,8 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
-                updateTweets(data.tweets, data.page, data.total_pages);
+                updateAllTweets(data.tweets, data.page, data.total_pages);
+                updateScheduledTweets(data.tweets);
                 lastFetchTime = Date.now();
             } catch (error) {
                 console.error('Error fetching tweets:', error);
@@ -456,62 +504,65 @@
             }
         }
 
-        function updateTweets(tweets, page, totalPages) {
+        function updateAllTweets(tweets, page, totalPages) {
             currentPage = page;
-            const tbody = document.getElementById('scheduled-tweets-body');
+            const tbody = document.getElementById('all-tweets-body');
             tbody.innerHTML = '';
             tweets.forEach(tweet => {
                 const row = document.createElement('tr');
-                row.className = tweet.posted ? 'posted' : tweet.scheduled_time ? 'scheduled' : '';
+                row.className = tweet.posted ? 'table-success' : tweet.scheduled_time ? 'table-warning' : '';
 
-                const messageCell = document.createElement('td');
-                const messageSpan = document.createElement('span');
-                messageSpan.className = 'message-cell';
-                messageSpan.textContent = tweet.message.length > 50 ? tweet.message.substring(0, 50) : tweet.message;
-                messageCell.appendChild(messageSpan);
+                row.innerHTML = `
+                    <td>
+                        <span class="message-cell">${tweet.message.substring(0, 50)}</span>
+                        ${tweet.message.length > 50 ? '<span class="ellipsis-btn">...</span>' : ''}
+                    </td>
+                    <td>${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}</td>
+                    <td>${tweet.posted ? '<i class="fas fa-check-circle text-success"></i> Posted' : tweet.scheduled_time ? '<i class="fas fa-clock text-warning"></i> Scheduled' : '<i class="fas fa-times-circle text-danger"></i> Not Scheduled'}</td>
+                    <td class="posted-by">${tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A'}</td>
+                    <td>${tweet.posted ? '' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})"><i class="fas fa-paper-plane"></i> Send Now</button>`}</td>
+                `;
 
-                if (tweet.message.length > 50) {
-                    const ellipsisBtn = document.createElement('span');
-                    ellipsisBtn.className = 'ellipsis-btn';
-                    ellipsisBtn.textContent = '...';
-                    ellipsisBtn.addEventListener('click', () => {
-                        showModal(tweet);
-                    });
-                    messageCell.appendChild(ellipsisBtn);
+                const ellipsisBtn = row.querySelector('.ellipsis-btn');
+                if (ellipsisBtn) {
+                    ellipsisBtn.addEventListener('click', () => showModal(tweet));
                 }
-                row.appendChild(messageCell);
-
-                const mediaCell = document.createElement('td');
-                mediaCell.innerHTML = tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None';
-                row.appendChild(mediaCell);
-
-                const scheduledTimeCell = document.createElement('td');
-                scheduledTimeCell.innerHTML = tweet.scheduled_time ? '✔️ ' + new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : '❌';
-                row.appendChild(scheduledTimeCell);
-
-                const countdownCell = document.createElement('td');
-                countdownCell.className = 'countdown';
-                countdownCell.setAttribute('data-scheduled-time', tweet.scheduled_time);
-                countdownCell.textContent = formatCountdown(tweet.scheduled_time);
-                row.appendChild(countdownCell);
-
-                const statusCell = document.createElement('td');
-                statusCell.innerHTML = tweet.posted ? '✔️' : tweet.scheduled_time ? '✔️' : '❌';
-                row.appendChild(statusCell);
-
-                const postedByCell = document.createElement('td');
-                postedByCell.className = 'posted-by';
-                postedByCell.textContent = tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A';
-                row.appendChild(postedByCell);
-
-                const actionCell = document.createElement('td');
-                actionCell.innerHTML = tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`;
-                row.appendChild(actionCell);
 
                 tbody.appendChild(row);
             });
-            updatePagination('scheduled-pagination', page, totalPages);
-            updateCountdowns();
+            updatePagination('all-tweets-pagination', page, totalPages);
+        }
+
+        function updateScheduledTweets(tweets) {
+            const tbody = document.getElementById('scheduled-tweets-body');
+            tbody.innerHTML = '';
+            const scheduled = tweets.filter(t => t.scheduled_time && !t.posted);
+
+            if (scheduled.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="4" class="text-center">No tweets are currently scheduled.</td>';
+                tbody.appendChild(row);
+                return;
+            }
+
+            scheduled.forEach(tweet => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <span class="message-cell">${tweet.message.substring(0, 50)}</span>
+                        ${tweet.message.length > 50 ? '<span class="ellipsis-btn">...</span>' : ''}
+                    </td>
+                    <td>${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}</td>
+                    <td>${new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}</td>
+                    <td class="countdown" data-countdown-to="${tweet.scheduled_time}">${formatCountdown(tweet.scheduled_time)}</td>
+                `;
+
+                const ellipsisBtn = row.querySelector('.ellipsis-btn');
+                if (ellipsisBtn) {
+                    ellipsisBtn.addEventListener('click', () => showModal(tweet));
+                }
+                tbody.appendChild(row);
+            });
         }
 
         function showModal(tweet) {
@@ -601,19 +652,11 @@
         function updateCountdowns() {
             clearInterval(countdownInterval);
             countdownInterval = setInterval(() => {
-                const countdownCells = document.querySelectorAll('.countdown');
-                countdownCells.forEach(cell => {
-                    const scheduledTime = cell.getAttribute('data-scheduled-time');
-                    cell.textContent = formatCountdown(scheduledTime);
+                const countdownElements = document.querySelectorAll('.countdown');
+                countdownElements.forEach(el => {
+                    const targetTime = el.getAttribute('data-countdown-to');
+                    el.textContent = formatCountdown(targetTime);
                 });
-                const now = new Date();
-                const hasExpiring = Array.from(countdownCells).some(cell => {
-                    const scheduledTime = cell.getAttribute('data-scheduled-time');
-                    if (!scheduledTime) return false;
-                    const diffMs = new Date(scheduledTime) - now;
-                    return diffMs <= 5000 && diffMs > 0;
-                });
-                if (hasExpiring) fetchTweets(currentPage);
             }, 1000);
         }
 
@@ -678,9 +721,11 @@
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset() + 180); // Adjust for EAT (+3:00)
         document.getElementById('scheduled_time').min = now.toISOString().slice(0, 16);
 
-        // Initial fetch of tweets and credentials status
+        // Initial fetch of data
         fetchTweets();
         fetchCredentialsStatus();
+        fetchSystemStatus();
+        updateCountdowns();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
