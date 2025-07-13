@@ -219,8 +219,10 @@
         <div class="status-card">
             <h5>System Status</h5>
             <p><strong>Automatic Scheduling:</strong> Up to 17 random tweets posted daily per credential.</p>
+            <p><strong>Next Post On:</strong> <span id="next-post-on">Loading...</span> (Nairobi Time)</p>
             <p><strong>Active Credential:</strong> <span id="active-credential">Loading...</span></p>
             <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
+            <p><strong>Quarantined Credentials:</strong> <span id="quarantined-credentials">None</span></p>
         </div>
 
         <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
@@ -356,6 +358,26 @@
 
         // Periodically update the credentials status
         setInterval(fetchCredentialsStatus, 5000); // Update every 5 seconds
+
+        async function fetchSystemStatus() {
+            try {
+                const response = await fetch('/api/system_status');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                document.getElementById('next-post-on').textContent = data.next_post_on;
+                const quarantined = data.quarantined_credentials.join(', ') || 'None';
+                document.getElementById('quarantined-credentials').textContent = quarantined;
+            } catch (error) {
+                console.error('Error fetching system status:', error);
+                document.getElementById('next-post-on').textContent = 'Error';
+                document.getElementById('quarantined-credentials').textContent = 'Error';
+            }
+        }
+
+        // Periodically update the system status
+        setInterval(fetchSystemStatus, 5000);
 
         async function fetchTweets(page = currentPage) {
             try {

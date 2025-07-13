@@ -72,6 +72,7 @@ def load_credentials():
 credentials = load_credentials()
 current_credential_index = 0
 credential_lock = threading.Lock()
+quarantined_credentials = {} # email -> quarantine_until_datetime
 
 # Get current Twitter/X API credentials
 def get_current_credentials(index=None):
@@ -290,57 +291,93 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
     print(f"Failed to post tweet. All credentials failed.")
     return False, None
 
+# Credential health check
+def check_credential_health():
+    global quarantined_credentials
+    while True:
+        now = datetime.now(UTC)
+        for email, quarantine_until in list(quarantined_credentials.items()):
+            if now >= quarantine_until:
+                print(f"Removing {email} from quarantine.")
+                del quarantined_credentials[email]
+
+        for cred in credentials:
+            email = cred['Email']
+            if email in quarantined_credentials:
+                continue
+
+            try:
+                client_v2 = get_twitter_conn_v2([c['Email'] for c in credentials].index(email))
+                if not client_v2:
+                    raise tweepy.TweepyException("Failed to initialize client")
+                client_v2.get_me()
+            except tweepy.TweepyException as e:
+                if hasattr(e, 'response') and e.response and e.response.status_code == 429:
+                    quarantine_until = now + timedelta(hours=1)
+                    quarantined_credentials[email] = quarantine_until
+                    print(f"Credential {email} hit rate limit (429). Quarantined until {quarantine_until.isoformat()}.")
+                else:
+                    print(f"Error with credential {email}: {e}")
+
+        time.sleep(3600) # Check health every hour
+
 # Background thread to schedule and post 17 tweets per day per credential
 def schedule_and_post_tweets():
     global scheduled_tweets
     posted_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
+    next_post_time = None
 
     while True:
         now = datetime.now(UTC)
         
-        # Iterate through each credential to check and post
-        for cred in credentials:
+        active_credentials = [c for c in credentials if c['Email'] not in quarantined_credentials]
+        if not active_credentials:
+            time.sleep(600)
+            continue
+
+        # Iterate through each active credential to check and post
+        for cred in active_credentials:
             email = cred['Email']
 
-            # Reset daily counter for the credential
+            # Reset daily counter
             if now.date() > posted_counts[email]['date']:
                 posted_counts[email]['count'] = 0
                 posted_counts[email]['date'] = now.date()
 
-            # Post if the daily limit for this credential is not reached
             if posted_counts[email]['count'] < 17:
                 available_tweets = [t for t in tweets if not t['posted'] and t['scheduled_time'] is None]
                 if available_tweets:
                     tweet_to_post = random.choice(available_tweets)
 
+                    delay = random.randint(1800, 3600) # 30 to 60 minutes
+                    next_post_time = (now + timedelta(seconds=delay)).isoformat()
+                    print(f"Next post scheduled around {next_post_time} with {email}")
+                    time.sleep(delay)
+
                     # Use the specific credential for posting
                     original_index = current_credential_index
-
-                    # Find the index for the current credential
                     try:
                         cred_index = [c['Email'] for c in credentials].index(email)
                         with credential_lock:
                             global current_credential_index
                             current_credential_index = cred_index
                     except ValueError:
-                        continue # Should not happen
+                        continue
 
                     success, _ = post_tweet(tweet_id=tweet_to_post['id'])
 
-                    # Restore original credential index
                     with credential_lock:
                         current_credential_index = original_index
 
                     if success:
                         posted_counts[email]['count'] += 1
                         print(f"Posted tweet {tweet_to_post['id']} with {email}. Total for {email} today: {posted_counts[email]['count']}/17")
-                        # Add a delay to distribute posts
-                        time.sleep(random.randint(60, 300))
+                        next_post_time = None # Reset after posting
 
-        # Sleep for a while before the next cycle
-        time.sleep(600) # Check every 10 minutes
+        time.sleep(600)
 
-# Start background thread for scheduling and posting tweets
+# Start background threads
+threading.Thread(target=check_credential_health, daemon=True).start()
 threading.Thread(target=schedule_and_post_tweets, daemon=True).start()
 
 # API endpoint to get all tweets
@@ -463,11 +500,25 @@ def send_tweet(tweet_id):
         return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully!'})
     return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id}.'}), 500
 
+# API endpoint for system status
+@app.route('/api/system_status', methods=['GET'])
+def system_status():
+    global next_post_time
+    nairobi_time = "Not scheduled"
+    if next_post_time:
+        utc_time = datetime.fromisoformat(next_post_time)
+        nairobi_tz = timedelta(hours=3)
+        nairobi_time = (utc_time + nairobi_tz).strftime('%Y-%m-%d %H:%M:%S')
+
+    return jsonify({
+        'next_post_on': nairobi_time,
+        'quarantined_credentials': list(quarantined_credentials.keys())
+    })
+
 # Main route
 @app.route('/', methods=['GET'])
 def index():
-    next_hour = (datetime.now(UTC) + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-    return render_template('index.html', next_hour=next_hour.strftime('%H:%M:%S'))
+    return render_template('index.html')
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
