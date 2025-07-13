@@ -130,7 +130,7 @@ tweets = [
         'posted': False,
         'scheduled_time': None,
         'tweet_id': None,
-        'posted_by': [],  # List to store emails of accounts that posted the tweet
+        'posted_by': [],
         'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
     } for i, msg in enumerate(HARDCODED_TWEETS)
 ]
@@ -177,29 +177,19 @@ def get_twitter_conn_v1(credential_index):
         print(f"Error verifying credentials for {creds['Email']} (v1) via proxy: {str(e)}")
         return None
 
-import requests
-
 def get_twitter_conn_v2(credential_index):
     creds = get_current_credentials(credential_index)
     if not creds:
         print("No credentials available for v2 connection.")
         return None
-
-    proxy = get_proxy()
-
     try:
-        # For v2, we need to create a session and pass it to the client
-        session = requests.Session()
-        session.proxies = proxy
-
+        proxy = get_proxy()
         client = tweepy.Client(
             consumer_key=creds['API KEY'],
             consumer_secret=creds['API KEY SECRET'],
             access_token=creds['ACCESS TOKEN'],
-            access_token_secret=creds['ACCESS TOKEN SECRET'],
-            session=session
+            access_token_secret=creds['ACCESS TOKEN SECRET']
         )
-
         client.get_me()
         print(f"OAuth 1.0a v2 client initialized for {creds['Email']} via proxy {proxy['https']}")
         return client
@@ -300,7 +290,6 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
             switch_credentials()
             continue
 
-        # Switch credential after each successful post to distribute load
         switch_credentials()
 
         if tweet:
@@ -358,11 +347,8 @@ def schedule_and_post_tweets():
             time.sleep(600)
             continue
 
-        # Iterate through each active credential to check and post
         for cred in active_credentials:
             email = cred['Email']
-
-            # Reset daily counter
             if now.date() > posted_counts[email]['date']:
                 posted_counts[email]['count'] = 0
                 posted_counts[email]['date'] = now.date()
@@ -372,7 +358,7 @@ def schedule_and_post_tweets():
                 if available_tweets:
                     tweet_to_post = random.choice(available_tweets)
 
-                    delay = random.randint(1800, 3600) # 30 to 60 minutes
+                    delay = random.randint(1800, 3600)
                     next_post_time = (now + timedelta(seconds=delay)).isoformat()
                     print(f"Next post scheduled around {next_post_time} with {email}")
                     time.sleep(delay)
@@ -392,7 +378,7 @@ def schedule_and_post_tweets():
                     if success:
                         posted_counts[email]['count'] += 1
                         print(f"Posted tweet {tweet_to_post['id']} with {email}. Total for {email} today: {posted_counts[email]['count']}/17")
-                        next_post_time = None # Reset after posting
+                        next_post_time = None
 
         time.sleep(600)
 
@@ -490,12 +476,7 @@ def post_tweet_now():
     success, posted_tweet_id = post_tweet(message=message, media_path=media_path, is_instant=True)
     if success:
         max_id = max((t['id'] for t in tweets), default=0)
-        # Find the email of the credential that successfully posted the tweet
-        successful_credential_email = "Unknown"
-        if posted_tweet_id:
-            # This is a simplification. In a real-world scenario, you'd get this from post_tweet
-            successful_credential_email = get_current_credentials()['Email']
-
+        successful_credential_email = get_current_credentials()['Email']
         tweets.append({
             'id': max_id + 1,
             'message': message,
