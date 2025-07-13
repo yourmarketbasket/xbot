@@ -583,6 +583,12 @@ def index():
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    if os.path.exists(app.config['TWEET_STORAGE']):
+        with open(app.config['TWEET_STORAGE'], 'r') as f:
+            all_tweets = json.load(f)
+            scheduled_tweets = [t for t in all_tweets if t.get('scheduled_time') and not t.get('posted')]
+            tweets = all_tweets
+
     if not credentials:
         print("Warning: No valid credentials loaded. Check credentials.xlsx file.")
     app.run(debug=True)
