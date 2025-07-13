@@ -74,6 +74,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             display: inline-block;
+            position: relative;
         }
         .ellipsis-btn {
             cursor: pointer;
@@ -82,27 +83,25 @@
         }
         .dialog-box {
             display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            position: absolute;
             background-color: #fff;
-            padding: 20px;
+            padding: 15px;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
             z-index: 1050;
-            max-width: 500px;
+            max-width: 400px;
             word-wrap: break-word;
+            border: 1px solid #dee2e6;
         }
-        .dialog-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1040;
+        .dialog-box::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 10px 10px 0;
+            border-style: solid;
+            border-color: #fff transparent transparent transparent;
         }
         .table tbody tr {
             transition: background-color 0.2s ease;
@@ -247,7 +246,6 @@
     </style>
 </head>
 <body>
-    <div id="dialog-overlay"></div>
     <div id="dialog-box" class="dialog-box"></div>
     <div class="container-fluid">
         <h1>Tweetbot</h1>
@@ -441,16 +439,20 @@
                 row.className = tweet.posted ? 'posted' : tweet.scheduled_time ? 'scheduled' : '';
 
                 const messageCell = document.createElement('td');
+                messageCell.className = 'message-cell';
+
+                const messageSpan = document.createElement('span');
+                messageSpan.textContent = tweet.message.length > 50 ? tweet.message.substring(0, 50) : tweet.message;
+                messageCell.appendChild(messageSpan);
+
                 if (tweet.message.length > 50) {
-                    messageCell.innerHTML = `
-                        <span class="message-cell">${tweet.message.substring(0, 50)}</span>
-                        <span class="ellipsis-btn">...</span>
-                    `;
-                    messageCell.querySelector('.ellipsis-btn').addEventListener('click', () => {
-                        showDialog(tweet.message);
+                    const ellipsisBtn = document.createElement('span');
+                    ellipsisBtn.className = 'ellipsis-btn';
+                    ellipsisBtn.textContent = '...';
+                    ellipsisBtn.addEventListener('mouseenter', (e) => {
+                        showDialog(e.target, tweet.message);
                     });
-                } else {
-                    messageCell.textContent = tweet.message;
+                    messageCell.appendChild(ellipsisBtn);
                 }
                 row.appendChild(messageCell);
 
@@ -487,15 +489,17 @@
             updateCountdowns();
         }
 
-        function showDialog(message) {
+        function showDialog(target, message) {
             const dialogBox = document.getElementById('dialog-box');
-            const dialogOverlay = document.getElementById('dialog-overlay');
             dialogBox.textContent = message;
+
+            const rect = target.getBoundingClientRect();
             dialogBox.style.display = 'block';
-            dialogOverlay.style.display = 'block';
-            dialogOverlay.addEventListener('click', () => {
+            dialogBox.style.left = `${rect.left + window.scrollX}px`;
+            dialogBox.style.top = `${rect.top + window.scrollY - dialogBox.offsetHeight - 10}px`;
+
+            dialogBox.addEventListener('mouseleave', () => {
                 dialogBox.style.display = 'none';
-                dialogOverlay.style.display = 'none';
             });
         }
 
