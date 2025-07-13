@@ -323,7 +323,7 @@ def check_credential_health():
 
 # Background thread to schedule and post 17 tweets per day per credential
 def schedule_and_post_tweets():
-    global scheduled_tweets
+    global scheduled_tweets, current_credential_index, next_post_time
     posted_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
     next_post_time = None
 
@@ -354,19 +354,16 @@ def schedule_and_post_tweets():
                     print(f"Next post scheduled around {next_post_time} with {email}")
                     time.sleep(delay)
 
-                    # Use the specific credential for posting
-                    original_index = current_credential_index
-                    try:
-                        cred_index = [c['Email'] for c in credentials].index(email)
-                        with credential_lock:
-                            global current_credential_index
-                            current_credential_index = cred_index
-                    except ValueError:
-                        continue
-
-                    success, _ = post_tweet(tweet_id=tweet_to_post['id'])
-
                     with credential_lock:
+                        original_index = current_credential_index
+                        try:
+                            cred_index = [c['Email'] for c in credentials].index(email)
+                            current_credential_index = cred_index
+                        except ValueError:
+                            continue
+
+                        success, _ = post_tweet(tweet_id=tweet_to_post['id'])
+
                         current_credential_index = original_index
 
                     if success:
