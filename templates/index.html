@@ -432,6 +432,10 @@
             `;
             alerts.appendChild(alert);
             setTimeout(() => alert.remove(), 5000);
+
+            const consoleLog = document.getElementById('console-log');
+            consoleLog.innerHTML += `[${type.toUpperCase()}] ${message}\\n`;
+            consoleLog.scrollTop = consoleLog.scrollHeight;
         }
 
         function basename(path) {
