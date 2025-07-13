@@ -279,6 +279,15 @@
 
         <!-- Status Card for Credential and Scheduling Info -->
         <div class="status-card">
+            <h5>System Control</h5>
+            <div class="d-flex justify-content-start mb-3">
+                <button id="start-btn" class="btn btn-success me-2">Start System</button>
+                <button id="stop-btn" class="btn btn-danger">Stop System</button>
+            </div>
+            <p><strong>System Status:</strong> <span id="system-status" class="fw-bold">Loading...</span></p>
+        </div>
+
+        <div class="status-card">
             <h5>System Status</h5>
             <p><strong>Automatic Scheduling:</strong> Up to 17 random tweets posted daily per credential.</p>
             <p><strong>Next Post On:</strong> <span id="next-post-on">Loading...</span> (Nairobi Time)</p>
@@ -287,8 +296,19 @@
                 <button id="switch-credential-btn" class="btn btn-secondary btn-sm switch-credential-btn">Switch Credential</button>
             </p>
             <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
-                <p><strong>Quarantined Credentials:</strong></p>
-                <ul id="quarantined-list" class="list-group"></ul>
+            <p><strong>Quarantined Credentials:</strong></p>
+            <ul id="quarantined-list" class="list-group"></ul>
+        </div>
+
+        <div class="status-card">
+            <h5>Upload Credentials</h5>
+            <form id="upload-credentials-form" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="credentials-file" class="form-label">Upload new credentials file (.xlsx)</label>
+                    <input type="file" name="file" id="credentials-file" class="form-control" accept=".xlsx" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </form>
         </div>
 
         <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
@@ -383,6 +403,14 @@
                 </form>
             </div>
         </div>
+
+        <!-- Console Output -->
+        <div class="status-card mt-4">
+            <h5>Console Output</h5>
+            <div id="console-output" style="height: 200px; overflow-y: scroll; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap;">
+                Loading console...
+            </div>
+        </div>
     </div>
     
     <script>
@@ -459,6 +487,15 @@
                 }
                 const data = await response.json();
                 document.getElementById('next-post-on').textContent = data.next_post_on;
+
+                const systemStatusEl = document.getElementById('system-status');
+                if (data.system_running) {
+                    systemStatusEl.textContent = 'Running';
+                    systemStatusEl.className = 'fw-bold text-success';
+                } else {
+                    systemStatusEl.textContent = 'Stopped';
+                    systemStatusEl.className = 'fw-bold text-danger';
+                }
 
                 const quarantinedList = document.getElementById('quarantined-list');
                 const existingEmails = new Set([...quarantinedList.querySelectorAll('span:first-child')].map(el => el.textContent));
@@ -735,6 +772,61 @@
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset() + 180); // Adjust for EAT (+3:00)
         document.getElementById('scheduled_time').min = now.toISOString().slice(0, 16);
 
+        document.getElementById('start-btn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/start', { method: 'POST' });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                fetchSystemStatus();
+            } catch (error) {
+                showAlert('Failed to start system.', 'danger');
+            }
+        });
+
+        document.getElementById('stop-btn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/stop', { method: 'POST' });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                fetchSystemStatus();
+            } catch (error) {
+                showAlert('Failed to stop system.', 'danger');
+            }
+        });
+
+        document.getElementById('upload-credentials-form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            try {
+                const response = await fetch('/api/upload_credentials', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                if (data.success) {
+                    e.target.reset();
+                    fetchCredentialsStatus();
+                }
+            } catch (error) {
+                console.error('Error uploading credentials:', error);
+                showAlert('Failed to upload credentials due to network error.', 'danger');
+            }
+        });
+
+        const socket = io();
+        const consoleOutput = document.getElementById('console-output');
+
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            consoleOutput.innerHTML = ''; // Clear console on reconnect
+        });
+
+        socket.on('log', function(msg) {
+            consoleOutput.innerHTML += msg.data + '\n';
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        });
+
         // Initial fetch of data
         fetchTweets();
         fetchCredentialsStatus();
@@ -742,5 +834,6 @@
         updateCountdowns();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.2/socket.io.js"></script>
 </body>
 </html>
