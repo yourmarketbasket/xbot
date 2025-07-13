@@ -290,39 +290,55 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
     print(f"Failed to post tweet. All credentials failed.")
     return False, None
 
-# Background thread to schedule and post 6 tweets every hour
+# Background thread to schedule and post 17 tweets per day per credential
 def schedule_and_post_tweets():
     global scheduled_tweets
+    posted_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
+
     while True:
         now = datetime.now(UTC)
-        next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-        available_tweets = [t for t in tweets if not t['posted'] and t['scheduled_time'] is None]
-        if len(available_tweets) >= 6:
-            selected_tweets = random.sample(available_tweets, 6)
-            interval = timedelta(minutes=10)  # 6 tweets per hour = 1 every 10 minutes
-            for i, tweet in enumerate(selected_tweets):
-                scheduled_time = (next_hour + i * interval).isoformat()
-                tweet['scheduled_time'] = scheduled_time
-                scheduled_tweets.append({
-                    'id': tweet['id'],
-                    'message': tweet['message'],
-                    'media_path': tweet['media_path'],
-                    'scheduled_time': scheduled_time,
-                    'posted': False
-                })
-                print(f"Scheduled tweet {tweet['id']} at {scheduled_time}")
-            save_tweets_to_file(tweets)
         
-        # Check and post scheduled tweets
-        for scheduled_tweet in scheduled_tweets[:]:
-            scheduled_dt = datetime.fromisoformat(scheduled_tweet['scheduled_time'])
-            if scheduled_dt <= now and not scheduled_tweet['posted']:
-                success, posted_tweet_id = post_tweet(tweet_id=scheduled_tweet['id'])
-                if success:
-                    scheduled_tweets.remove(scheduled_tweet)
-                    print(f"Tweet {scheduled_tweet['id']} posted from scheduled queue to at least 3 accounts.")
-        
-        time.sleep(60)  # Check every minute
+        # Iterate through each credential to check and post
+        for cred in credentials:
+            email = cred['Email']
+
+            # Reset daily counter for the credential
+            if now.date() > posted_counts[email]['date']:
+                posted_counts[email]['count'] = 0
+                posted_counts[email]['date'] = now.date()
+
+            # Post if the daily limit for this credential is not reached
+            if posted_counts[email]['count'] < 17:
+                available_tweets = [t for t in tweets if not t['posted'] and t['scheduled_time'] is None]
+                if available_tweets:
+                    tweet_to_post = random.choice(available_tweets)
+
+                    # Use the specific credential for posting
+                    original_index = current_credential_index
+
+                    # Find the index for the current credential
+                    try:
+                        cred_index = [c['Email'] for c in credentials].index(email)
+                        with credential_lock:
+                            global current_credential_index
+                            current_credential_index = cred_index
+                    except ValueError:
+                        continue # Should not happen
+
+                    success, _ = post_tweet(tweet_id=tweet_to_post['id'])
+
+                    # Restore original credential index
+                    with credential_lock:
+                        current_credential_index = original_index
+
+                    if success:
+                        posted_counts[email]['count'] += 1
+                        print(f"Posted tweet {tweet_to_post['id']} with {email}. Total for {email} today: {posted_counts[email]['count']}/17")
+                        # Add a delay to distribute posts
+                        time.sleep(random.randint(60, 300))
+
+        # Sleep for a while before the next cycle
+        time.sleep(600) # Check every 10 minutes
 
 # Start background thread for scheduling and posting tweets
 threading.Thread(target=schedule_and_post_tweets, daemon=True).start()
