@@ -236,17 +236,19 @@
             <!-- Schedule Tweets Tab -->
             <div class="tab-pane fade show active" id="schedule" role="tabpanel" aria-labelledby="schedule-tab">
                 <form id="schedule-form">
-                    <div class="mb-3">
-                        <label for="num_posts" class="form-label">Number of Posts (1-20)</label>
-                        <input type="number" name="num_posts" id="num_posts" class="form-control" min="1" max="20" placeholder="Enter number of posts" required>
+                    <div class="row align-items-end">
+                        <div class="col-md-4 mb-3">
+                            <label for="num_posts" class="form-label">Number of Posts (1-20)</label>
+                            <input type="number" name="num_posts" id="num_posts" class="form-control" min="1" max="20" placeholder="Enter number of posts" required>
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label for="scheduled_time" class="form-label">Schedule Posting Time</label>
+                            <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <button type="submit" class="btn btn-primary w-100">Schedule Tweets</button>
+                        </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="scheduled_time" class="form-label">Schedule Posting Time</label>
-                        <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary">Schedule Tweets</button>
                 </form>
                 
                 <h2>All Tweets</h2>
