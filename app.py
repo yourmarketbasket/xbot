@@ -62,7 +62,9 @@ def load_credentials():
         if not credentials:
             print("No credentials found in the Excel file.")
             return []
-        print(f"Loaded {len(credentials)} credentials from {app.config['CREDENTIALS_FILE']}")
+        print(f"Loaded {len(credentials)} credentials from {app.config['CREDENTIALS_FILE']}:")
+        for cred in credentials:
+            print(f"  - {cred['Email']}")
         return credentials
     except Exception as e:
         print(f"Error loading credentials from {app.config['CREDENTIALS_FILE']}: {str(e)}")
@@ -73,6 +75,8 @@ credentials = load_credentials()
 current_credential_index = 0
 credential_lock = threading.Lock()
 quarantined_credentials = {} # email -> quarantine_until_datetime
+last_post_time = None
+COOLDOWN_PERIOD = timedelta(minutes=5) # 5 minutes cooldown
 
 # Get current Twitter/X API credentials
 def get_current_credentials(index=None):
@@ -144,17 +148,6 @@ save_tweets_to_file(tweets)
 # Register custom Jinja2 filter
 app.jinja_env.filters['basename'] = basename_filter
 
-# Proxy configuration
-PROXY_HOST = "geo.iproyal.com"
-PROXY_PORTS = [12321, 11200, 11201, 11202, 11203]
-PROXY_USER = "xKplVa24ZiRopAv2"
-PROXY_PASS = "jkYc1AhYXG8ASwA1"
-
-def get_proxy():
-    port = random.choice(PROXY_PORTS)
-    proxy_url = f"http://{PROXY_USER}:{PROXY_PASS}@{PROXY_HOST}:{port}"
-    return {"http": proxy_url, "https": proxy_url}
-
 # Twitter/X API connections
 def get_twitter_conn_v1(credential_index):
     creds = get_current_credentials(credential_index)
@@ -162,19 +155,18 @@ def get_twitter_conn_v1(credential_index):
         print("No credentials available for v1 connection.")
         return None
     try:
-        proxy = get_proxy()
         auth = tweepy.OAuth1UserHandler(
             creds['API KEY'],
             creds['API KEY SECRET'],
             creds['ACCESS TOKEN'],
             creds['ACCESS TOKEN SECRET']
         )
-        api = tweepy.API(auth, wait_on_rate_limit=False, proxy=proxy['https'])
+        api = tweepy.API(auth, wait_on_rate_limit=False)
         api.verify_credentials()
-        print(f"Credentials for {creds['Email']} verified successfully for v1 via proxy {proxy['https']}")
+        print(f"Credentials for {creds['Email']} verified successfully for v1.")
         return api
     except Exception as e:
-        print(f"Error verifying credentials for {creds['Email']} (v1) via proxy: {str(e)}")
+        print(f"Error verifying credentials for {creds['Email']} (v1): {str(e)}")
         return None
 
 def get_twitter_conn_v2(credential_index):
@@ -183,7 +175,6 @@ def get_twitter_conn_v2(credential_index):
         print("No credentials available for v2 connection.")
         return None
     try:
-        proxy = get_proxy()
         client = tweepy.Client(
             consumer_key=creds['API KEY'],
             consumer_secret=creds['API KEY SECRET'],
@@ -191,10 +182,10 @@ def get_twitter_conn_v2(credential_index):
             access_token_secret=creds['ACCESS TOKEN SECRET']
         )
         client.get_me()
-        print(f"OAuth 1.0a v2 client initialized for {creds['Email']} via proxy {proxy['https']}")
+        print(f"OAuth 1.0a v2 client initialized for {creds['Email']}.")
         return client
     except Exception as e:
-        print(f"Error initializing v2 client for {creds['Email']} via proxy: {str(e)}")
+        print(f"Error initializing v2 client for {creds['Email']}: {str(e)}")
         return None
 
 # Validate file extension and size
@@ -224,10 +215,18 @@ def credentials_status():
 
 # Post tweet with optional media
 def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
-    global current_credential_index
+    global current_credential_index, last_post_time
     if not credentials:
         print("Warning: No credentials available.")
         return False, None
+
+    with credential_lock:
+        if last_post_time:
+            time_since_last_post = datetime.now(UTC) - last_post_time
+            if time_since_last_post < COOLDOWN_PERIOD:
+                sleep_time = (COOLDOWN_PERIOD - time_since_last_post).total_seconds()
+                print(f"Cooldown active. Sleeping for {sleep_time:.2f} seconds.")
+                time.sleep(sleep_time)
 
     tweet = None
     if is_instant and message:
@@ -283,8 +282,10 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
             posted_tweet_ids.append(response.data['id'])
             posted_emails.append(creds['Email'])
         except tweepy.TweepyException as e:
-            if e.response and e.response.status_code == 429:
-                print(f"Rate limit hit (429) for {creds['Email']}. Switching credentials.")
+            if hasattr(e, 'response') and e.response and e.response.status_code == 429:
+                print(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
+                quarantine_until = datetime.now(UTC) + timedelta(hours=12)
+                quarantined_credentials[creds['Email']] = quarantine_until
             else:
                 print(f"Error posting tweet with {creds['Email']}: {str(e)}")
             switch_credentials()
@@ -298,6 +299,13 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
             tweet['tweet_id'] = posted_tweet_ids[0]
             tweet['posted_by'] = posted_emails
             save_tweets_to_file(tweets)
+
+        with credential_lock:
+            last_post_time = datetime.now(UTC)
+
+        # Proactively switch credentials after a successful post
+        switch_credentials()
+
         return True, posted_tweet_ids[0]
 
     print(f"Failed to post tweet. All credentials failed.")
@@ -312,26 +320,7 @@ def check_credential_health():
             if now >= quarantine_until:
                 print(f"Removing {email} from quarantine.")
                 del quarantined_credentials[email]
-
-        for cred in credentials:
-            email = cred['Email']
-            if email in quarantined_credentials:
-                continue
-
-            try:
-                client_v2 = get_twitter_conn_v2([c['Email'] for c in credentials].index(email))
-                if not client_v2:
-                    raise tweepy.TweepyException("Failed to initialize client")
-                client_v2.get_me()
-            except tweepy.TweepyException as e:
-                if hasattr(e, 'response') and e.response and e.response.status_code == 429:
-                    quarantine_until = now + timedelta(hours=1)
-                    quarantined_credentials[email] = quarantine_until
-                    print(f"Credential {email} hit rate limit (429). Quarantined until {quarantine_until.isoformat()}.")
-                else:
-                    print(f"Error with credential {email}: {e}")
-
-        time.sleep(3600) # Check health every hour
+        time.sleep(60) # Check every minute
 
 # Background thread to schedule and post 17 tweets per day per credential
 def schedule_and_post_tweets():
@@ -347,38 +336,52 @@ def schedule_and_post_tweets():
             time.sleep(600)
             continue
 
-        for cred in active_credentials:
+        # Find the next available credential
+        cred_to_use = None
+        for i in range(len(active_credentials)):
+            cred_index = (current_credential_index + i) % len(active_credentials)
+            cred = active_credentials[cred_index]
             email = cred['Email']
+
             if now.date() > posted_counts[email]['date']:
                 posted_counts[email]['count'] = 0
                 posted_counts[email]['date'] = now.date()
 
             if posted_counts[email]['count'] < 17:
-                available_tweets = [t for t in tweets if not t['posted'] and t['scheduled_time'] is None]
-                if available_tweets:
-                    tweet_to_post = random.choice(available_tweets)
+                cred_to_use = cred
+                break
 
-                    delay = random.randint(1800, 3600)
-                    next_post_time = (now + timedelta(seconds=delay)).isoformat()
-                    print(f"Next post scheduled around {next_post_time} with {email}")
-                    time.sleep(delay)
+        if not cred_to_use:
+            time.sleep(600)
+            continue
 
-                    with credential_lock:
-                        original_index = current_credential_index
-                        try:
-                            cred_index = [c['Email'] for c in credentials].index(email)
-                            current_credential_index = cred_index
-                        except ValueError:
-                            continue
+        email = cred_to_use['Email']
+        available_tweets = [t for t in tweets if not t['posted'] and t['scheduled_time'] is None]
+        if available_tweets:
+            tweet_to_post = random.choice(available_tweets)
 
-                        success, _ = post_tweet(tweet_id=tweet_to_post['id'])
+            delay = random.randint(1800, 3600)
+            next_post_time = (now + timedelta(seconds=delay)).isoformat()
+            print(f"Next post scheduled around {next_post_time} with {email}")
+            time.sleep(delay)
 
-                        current_credential_index = original_index
+            with credential_lock:
+                try:
+                    cred_index = [c['Email'] for c in credentials].index(email)
+                    current_credential_index = cred_index
+                except ValueError:
+                    continue
 
-                    if success:
-                        posted_counts[email]['count'] += 1
-                        print(f"Posted tweet {tweet_to_post['id']} with {email}. Total for {email} today: {posted_counts[email]['count']}/17")
-                        next_post_time = None
+                success, _ = post_tweet(tweet_id=tweet_to_post['id'])
+
+            if success:
+                posted_counts[email]['count'] += 1
+                print(f"Posted tweet {tweet_to_post['id']} with {email}. Total for {email} today: {posted_counts[email]['count']}/17")
+                if posted_counts[email]['count'] >= 17:
+                    quarantine_until = (datetime.now(UTC) + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                    quarantined_credentials[email] = quarantine_until
+                    print(f"Credential {email} has reached its daily limit. Quarantined until {quarantine_until.isoformat()}.")
+                next_post_time = None
 
         time.sleep(600)
 
@@ -491,15 +494,6 @@ def post_tweet_now():
         return jsonify({'success': True, 'message': f'Tweet posted successfully! View it at https://x.com/user/status/{posted_tweet_id}'})
     return jsonify({'success': False, 'message': 'Failed to post tweet.'}), 500
 
-# API endpoint to send tweet immediately
-@app.route('/api/send/<int:tweet_id>', methods=['POST'])
-def send_tweet(tweet_id):
-    success, posted_tweet_id = post_tweet(tweet_id)
-    if success:
-        global scheduled_tweets
-        scheduled_tweets[:] = [t for t in scheduled_tweets if t['id'] != tweet_id]
-        return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully!'})
-    return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id}.'}), 500
 
 # API endpoint for system status
 @app.route('/api/system_status', methods=['GET'])
@@ -511,9 +505,19 @@ def system_status():
         nairobi_tz = timedelta(hours=3)
         nairobi_time = (utc_time + nairobi_tz).strftime('%Y-%m-%d %H:%M:%S')
 
+    quarantined_status = {email: until.isoformat() for email, until in quarantined_credentials.items()}
+
+    posted_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
+    for tweet in tweets:
+        if tweet['posted']:
+            for email in tweet['posted_by']:
+                if email in posted_counts:
+                    posted_counts[email]['count'] += 1
+
     return jsonify({
         'next_post_on': nairobi_time,
-        'quarantined_credentials': list(quarantined_credentials.keys())
+        'quarantined_credentials': quarantined_status,
+        'posted_counts': posted_counts
     })
 
 # Main route

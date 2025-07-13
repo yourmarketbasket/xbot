@@ -6,16 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f4f6f9;
             color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
         }
         .container-fluid {
             width: 80%;
             max-width: 1400px;
-            margin: 20px auto;
+            margin: auto;
         }
         .form-control, .form-select {
             font-size: 0.95rem;
@@ -222,7 +227,8 @@
             <p><strong>Next Post On:</strong> <span id="next-post-on">Loading...</span> (Nairobi Time)</p>
             <p><strong>Active Credential:</strong> <span id="active-credential">Loading...</span></p>
             <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
-            <p><strong>Quarantined Credentials:</strong> <span id="quarantined-credentials">None</span></p>
+            <p><strong>Quarantined Credentials:</strong> <ul id="quarantined-credentials"><li>None</li></ul></p>
+            <p><strong>Today's Post Counts:</strong> <ul id="post-counts"><li>Loading...</li></ul></p>
         </div>
 
         <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
@@ -304,9 +310,18 @@
         function showAlert(message, type) {
             const alerts = document.getElementById('alerts');
             const alert = document.createElement('div');
-            alert.className = `alert alert-${type} alert-dismissible fade show`;
+            alert.className = `alert alert-${type} alert-dismissible fade show d-flex align-items-center`;
+            let icon = '';
+            if (type === 'success') {
+                icon = '<i class="fas fa-check-circle me-2"></i>';
+            } else if (type === 'danger') {
+                icon = '<i class="fas fa-times-circle me-2"></i>';
+            }
             alert.innerHTML = `
-                ${message.replace(/\n/g, '<br>')}
+                ${icon}
+                <div>
+                    ${message.replace(/\n/g, '<br>')}
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             `;
             alerts.appendChild(alert);
@@ -367,12 +382,35 @@
                 }
                 const data = await response.json();
                 document.getElementById('next-post-on').textContent = data.next_post_on;
-                const quarantined = data.quarantined_credentials.join(', ') || 'None';
-                document.getElementById('quarantined-credentials').textContent = quarantined;
+
+                const quarantinedList = document.getElementById('quarantined-credentials');
+                quarantinedList.innerHTML = '';
+                if (Object.keys(data.quarantined_credentials).length > 0) {
+                    for (const [email, until] of Object.entries(data.quarantined_credentials)) {
+                        const li = document.createElement('li');
+                        li.textContent = `${email} (available in ${formatCountdown(until)})`;
+                        quarantinedList.appendChild(li);
+                    }
+                } else {
+                    quarantinedList.innerHTML = '<li>None</li>';
+                }
+
+                const postCountsList = document.getElementById('post-counts');
+                postCountsList.innerHTML = '';
+                if (data.posted_counts && Object.keys(data.posted_counts).length > 0) {
+                    for (const [email, countData] of Object.entries(data.posted_counts)) {
+                        const li = document.createElement('li');
+                        li.textContent = `${email}: ${countData.count}/17`;
+                        postCountsList.appendChild(li);
+                    }
+                } else {
+                    postCountsList.innerHTML = '<li>No posts today.</li>';
+                }
             } catch (error) {
                 console.error('Error fetching system status:', error);
                 document.getElementById('next-post-on').textContent = 'Error';
-                document.getElementById('quarantined-credentials').textContent = 'Error';
+                document.getElementById('quarantined-credentials').innerHTML = '<li>Error</li>';
+                document.getElementById('post-counts').innerHTML = '<li>Error</li>';
             }
         }
 
@@ -406,9 +444,17 @@
                     <td>${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}</td>
                     <td>${tweet.scheduled_time ? new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : 'Not Scheduled'}</td>
                     <td class="countdown" data-scheduled-time="${tweet.scheduled_time}">${formatCountdown(tweet.scheduled_time)}</td>
-                    <td>${tweet.posted ? 'Posted' : tweet.scheduled_time ? 'Scheduled' : 'Not Scheduled'}</td>
+                    <td>
+                        ${tweet.posted ? '<i class="fas fa-check-circle text-success"></i> Posted' :
+                        tweet.scheduled_time ? '<i class="fas fa-clock text-warning"></i> Scheduled' :
+                        '<i class="fas fa-minus-circle text-muted"></i> Not Scheduled'}
+                    </td>
                     <td class="posted-by">${tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A'}</td>
-                    <td>${tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`}</td>
+                    <td>
+                        ${tweet.posted ? `<a href="https://x.com/user/status/${tweet.tweet_id}" target="_blank" class="btn btn-info btn-sm">View Tweet</a>` :
+                        tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' :
+                        '<span class="text-muted">Not Sent</span>'}
+                    </td>
                 `;
                 tbody.appendChild(row);
             });
@@ -465,20 +511,6 @@
             }, 1000);
         }
 
-        async function sendTweet(tweetId) {
-            try {
-                const response = await fetch(`/api/send/${tweetId}`, { method: 'POST' });
-                const data = await response.json();
-                showAlert(data.message, data.success ? 'success' : 'danger');
-                if (data.success) {
-                    fetchTweets(currentPage);
-                    fetchCredentialsStatus();
-                }
-            } catch (error) {
-                console.error('Error sending tweet:', error);
-                showAlert('Failed to send tweet due to network error.', 'danger');
-            }
-        }
 
         document.getElementById('schedule-form').addEventListener('submit', async e => {
             e.preventDefault();
