@@ -434,7 +434,7 @@
             setTimeout(() => alert.remove(), 5000);
 
             const consoleLog = document.getElementById('console-log');
-            consoleLog.innerHTML += `[${type.toUpperCase()}] ${message}\\n`;
+            consoleLog.innerHTML += `[${type.toUpperCase()}] ${message}<br>`;
             consoleLog.scrollTop = consoleLog.scrollHeight;
         }
 
