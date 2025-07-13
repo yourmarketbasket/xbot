@@ -570,7 +570,7 @@
                     <td>${new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}</td>
                     <td class="countdown" data-countdown-to="${tweet.scheduled_time}">${formatCountdown(tweet.scheduled_time)}</td>
                 `;
-
+// more changes
                 const ellipsisBtn = row.querySelector('.ellipsis-btn');
                 if (ellipsisBtn) {
                     ellipsisBtn.addEventListener('click', () => showModal(tweet));
