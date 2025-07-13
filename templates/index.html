@@ -571,6 +571,7 @@
             const pagination = document.getElementById(elementId);
             pagination.innerHTML = '';
             if (totalPages <= 1) return;
+            // more changes
             
             const prevLi = document.createElement('li');
             prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
