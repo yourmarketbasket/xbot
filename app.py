@@ -111,7 +111,9 @@ current_credential_index = 0
 credential_lock = threading.Lock()
 quarantined_credentials = {}  # email -> quarantine_until_datetime
 tweet_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
-system_running = True  # System is running by default
+system_running = False  # System is not running by default
+config_confirmed = False
+tweet_source = 'hardcoded'
 
 # Get current Twitter/X API credentials
 def get_current_credentials(index=None):
@@ -628,7 +630,9 @@ def system_status():
 # API endpoint to start the system
 @app.route('/api/start', methods=['POST'])
 def start_system():
-    global system_running
+    global system_running, config_confirmed
+    if not config_confirmed:
+        return jsonify({'success': False, 'message': 'Configuration not confirmed.'}), 400
     system_running = True
     logging.info("System started by user.")
     return jsonify({'success': True, 'message': 'System started.'})
@@ -660,10 +664,79 @@ def upload_credentials():
             credentials = new_credentials
             tweet_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
             current_credential_index = 0
+            logging.info("Credentials updated successfully.")
             return jsonify({'success': True, 'message': 'Credentials updated successfully.'})
         else:
+            logging.error("Failed to load new credentials.")
             return jsonify({'success': False, 'message': 'Failed to load new credentials.'}), 400
     return jsonify({'success': False, 'message': 'Invalid file type.'}), 400
+
+@app.route('/api/upload_tweets', methods=['POST'])
+def upload_tweets():
+    global tweets, tweet_source
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No selected file'}), 400
+    if file and file.filename.endswith('.txt'):
+        try:
+            new_tweets_text = file.read().decode('utf-8').splitlines()
+            new_tweets_text = [line for line in new_tweets_text if line.strip()]
+            if not new_tweets_text:
+                return jsonify({'success': False, 'message': 'File is empty or contains no valid tweets.'}), 400
+
+            media_files = get_media_files()
+            tweets = [
+                {
+                    'id': i + 1,
+                    'message': msg,
+                    'media_path': random.choice(media_files) if media_files else None,
+                    'posted': False,
+                    'scheduled_time': None,
+                    'tweet_id': None,
+                    'posted_by': [],
+                    'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
+                } for i, msg in enumerate(new_tweets_text)
+            ]
+            tweet_source = 'upload'
+            save_tweets_to_file(tweets)
+            logging.info(f"Uploaded {len(tweets)} new tweets.")
+            return jsonify({'success': True, 'message': f'Successfully uploaded {len(tweets)} tweets.'})
+        except Exception as e:
+            logging.error(f"Error processing uploaded tweets file: {str(e)}")
+            return jsonify({'success': False, 'message': 'Error processing file.'}), 500
+    return jsonify({'success': False, 'message': 'Invalid file type, please upload a .txt file.'}), 400
+
+@app.route('/api/confirm_config', methods=['POST'])
+def confirm_config():
+    global config_confirmed, tweet_source
+    data = request.json
+    tweet_source_option = data.get('tweet_source')
+    credentials_source_option = data.get('credentials_source')
+
+    if tweet_source_option == 'hardcoded':
+        tweet_source = 'hardcoded'
+        # Re-initialize with hardcoded tweets if needed
+        media_files = get_media_files()
+        tweets = [
+            {
+                'id': i + 1,
+                'message': msg,
+                'media_path': random.choice(media_files) if media_files else None,
+                'posted': False,
+                'scheduled_time': None,
+                'tweet_id': None,
+                'posted_by': [],
+                'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
+            } for i, msg in enumerate(HARDCODED_TWEETS)
+        ]
+        save_tweets_to_file(tweets)
+        logging.info("Using hardcoded tweets.")
+
+    config_confirmed = True
+    logging.info(f"Configuration confirmed: Tweets from '{tweet_source}', Credentials from '{credentials_source_option}'.")
+    return jsonify({'success': True, 'message': 'Configuration confirmed.'})
 
 # Main route
 @app.route('/', methods=['GET'])

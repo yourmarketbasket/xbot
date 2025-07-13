@@ -280,11 +280,54 @@
         <!-- Status Card for Credential and Scheduling Info -->
         <div class="status-card">
             <h5>System Control</h5>
-            <div class="d-flex justify-content-start mb-3">
-                <button id="start-btn" class="btn btn-success me-2">Start System</button>
-                <button id="stop-btn" class="btn btn-danger">Stop System</button>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="system-toggle" disabled>
+                <label class="form-check-label" for="system-toggle">System Offline</label>
             </div>
             <p><strong>System Status:</strong> <span id="system-status" class="fw-bold">Loading...</span></p>
+        </div>
+
+        <div class="status-card">
+            <h5>Configuration</h5>
+            <div class="mb-3">
+                <label class="form-label">Tweet Source</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tweet-source" id="hardcoded-tweets" value="hardcoded" checked>
+                    <label class="form-check-label" for="hardcoded-tweets">
+                        Use Hardcoded Tweets
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tweet-source" id="upload-tweets" value="upload">
+                    <label class="form-check-label" for="upload-tweets">
+                        Upload New Tweets
+                    </label>
+                </div>
+                <div id="tweets-upload-area" class="mt-2" style="display: none;">
+                    <label for="tweets-file" class="form-label">Upload tweets file (.txt, one tweet per line)</label>
+                    <input type="file" name="tweets-file" id="tweets-file" class="form-control" accept=".txt">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Credentials Source</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="credentials-source" id="existing-credentials" value="existing" checked>
+                    <label class="form-check-label" for="existing-credentials">
+                        Use Existing Credentials
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="credentials-source" id="upload-credentials" value="upload">
+                    <label class="form-check-label" for="upload-credentials">
+                        Upload New Credentials
+                    </label>
+                </div>
+                <div id="credentials-upload-area" class="mt-2" style="display: none;">
+                    <label for="credentials-file" class="form-label">Upload new credentials file (.xlsx)</label>
+                    <input type="file" name="file" id="credentials-file" class="form-control" accept=".xlsx">
+                </div>
+            </div>
+            <button id="confirm-config-btn" class="btn btn-primary">Confirm Configuration</button>
         </div>
 
         <div class="status-card">
@@ -489,12 +532,16 @@
                 document.getElementById('next-post-on').textContent = data.next_post_on;
 
                 const systemStatusEl = document.getElementById('system-status');
+                const systemToggleLabel = document.querySelector('label[for="system-toggle"]');
+                systemToggle.checked = data.system_running;
                 if (data.system_running) {
                     systemStatusEl.textContent = 'Running';
                     systemStatusEl.className = 'fw-bold text-success';
+                    systemToggleLabel.textContent = 'System Online';
                 } else {
                     systemStatusEl.textContent = 'Stopped';
                     systemStatusEl.className = 'fw-bold text-danger';
+                    systemToggleLabel.textContent = 'System Offline';
                 }
 
                 const quarantinedList = document.getElementById('quarantined-list');
@@ -816,6 +863,86 @@
 
         const socket = io();
         const consoleOutput = document.getElementById('console-output');
+        const systemToggle = document.getElementById('system-toggle');
+        const systemToggleLabel = document.querySelector('label[for="system-toggle"]');
+        const tweetsUploadArea = document.getElementById('tweets-upload-area');
+        const credentialsUploadArea = document.getElementById('credentials-upload-area');
+        const confirmConfigBtn = document.getElementById('confirm-config-btn');
+
+        document.querySelectorAll('input[name="tweet-source"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                tweetsUploadArea.style.display = e.target.value === 'upload' ? 'block' : 'none';
+            });
+        });
+
+        document.querySelectorAll('input[name="credentials-source"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                credentialsUploadArea.style.display = e.target.value === 'upload' ? 'block' : 'none';
+            });
+        });
+
+        confirmConfigBtn.addEventListener('click', async () => {
+            const tweetSource = document.querySelector('input[name="tweet-source"]:checked').value;
+            const credentialsSource = document.querySelector('input[name="credentials-source"]:checked').value;
+            let readyToConfirm = true;
+
+            if (tweetSource === 'upload') {
+                const tweetsFile = document.getElementById('tweets-file').files[0];
+                if (!tweetsFile) {
+                    showAlert('Please select a tweets file to upload.', 'warning');
+                    readyToConfirm = false;
+                } else {
+                    const formData = new FormData();
+                    formData.append('file', tweetsFile);
+                    const response = await fetch('/api/upload_tweets', { method: 'POST', body: formData });
+                    const data = await response.json();
+                    showAlert(data.message, data.success ? 'success' : 'danger');
+                    if (!data.success) readyToConfirm = false;
+                }
+            }
+
+            if (credentialsSource === 'upload') {
+                const credentialsFile = document.getElementById('credentials-file').files[0];
+                if (!credentialsFile) {
+                    showAlert('Please select a credentials file to upload.', 'warning');
+                    readyToConfirm = false;
+                } else {
+                    const formData = new FormData();
+                    formData.append('file', credentialsFile);
+                    const response = await fetch('/api/upload_credentials', { method: 'POST', body: formData });
+                    const data = await response.json();
+                    showAlert(data.message, data.success ? 'success' : 'danger');
+                    if (!data.success) readyToConfirm = false;
+                }
+            }
+
+            if(readyToConfirm) {
+                const response = await fetch('/api/confirm_config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tweet_source: tweetSource, credentials_source: credentialsSource })
+                });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                if (data.success) {
+                    systemToggle.disabled = false;
+                    confirmConfigBtn.disabled = true;
+                }
+            }
+        });
+
+        systemToggle.addEventListener('change', async (e) => {
+            const action = e.target.checked ? 'start' : 'stop';
+            try {
+                const response = await fetch(`/api/${action}`, { method: 'POST' });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                fetchSystemStatus();
+            } catch (error) {
+                showAlert(`Failed to ${action} system.`, 'danger');
+                e.target.checked = !e.target.checked; // Revert toggle on error
+            }
+        });
 
         socket.on('connect', function() {
             console.log('Connected to server');
