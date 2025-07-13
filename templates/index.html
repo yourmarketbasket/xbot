@@ -74,36 +74,46 @@
             overflow: hidden;
             text-overflow: ellipsis;
             display: inline-block;
-            position: relative;
         }
         .ellipsis-btn {
             cursor: pointer;
             color: #0d6efd;
             font-weight: bold;
         }
-        .dialog-box {
+        .modal {
             display: none;
-            position: absolute;
-            background-color: #fff;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            position: fixed;
             z-index: 1050;
-            max-width: 400px;
-            word-wrap: break-word;
-            border: 1px solid #dee2e6;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
         }
-        .dialog-box::after {
-            content: '';
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            border-width: 10px 10px 0;
-            border-style: solid;
-            border-color: #fff transparent transparent transparent;
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            position: relative;
         }
-        .dialog-box img, .dialog-box video {
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-btn:hover,
+        .close-btn:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .modal-body img, .modal-body video {
             max-width: 100%;
             border-radius: 4px;
             margin-top: 10px;
@@ -251,7 +261,12 @@
     </style>
 </head>
 <body>
-    <div id="dialog-box" class="dialog-box"></div>
+    <div id="messageModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <div class="modal-body"></div>
+        </div>
+    </div>
     <div class="container-fluid">
         <h1>Tweetbot</h1>
         <div id="alerts"></div>
@@ -444,9 +459,8 @@
                 row.className = tweet.posted ? 'posted' : tweet.scheduled_time ? 'scheduled' : '';
 
                 const messageCell = document.createElement('td');
-                messageCell.className = 'message-cell';
-
                 const messageSpan = document.createElement('span');
+                messageSpan.className = 'message-cell';
                 messageSpan.textContent = tweet.message.length > 50 ? tweet.message.substring(0, 50) : tweet.message;
                 messageCell.appendChild(messageSpan);
 
@@ -454,8 +468,8 @@
                     const ellipsisBtn = document.createElement('span');
                     ellipsisBtn.className = 'ellipsis-btn';
                     ellipsisBtn.textContent = '...';
-                    ellipsisBtn.addEventListener('mouseenter', (e) => {
-                        showDialog(e.target, tweet);
+                    ellipsisBtn.addEventListener('click', () => {
+                        showModal(tweet);
                     });
                     messageCell.appendChild(ellipsisBtn);
                 }
@@ -494,13 +508,14 @@
             updateCountdowns();
         }
 
-        function showDialog(target, tweet) {
-            const dialogBox = document.getElementById('dialog-box');
-            dialogBox.innerHTML = ''; // Clear previous content
+        function showModal(tweet) {
+            const modal = document.getElementById('messageModal');
+            const modalBody = modal.querySelector('.modal-body');
+            modalBody.innerHTML = ''; // Clear previous content
 
             const message = document.createElement('p');
             message.textContent = tweet.message;
-            dialogBox.appendChild(message);
+            modalBody.appendChild(message);
 
             if (tweet.media_path) {
                 const media_path = `/media/${basename(tweet.media_path)}`;
@@ -508,32 +523,26 @@
                     const video = document.createElement('video');
                     video.src = media_path;
                     video.controls = true;
-                    dialogBox.appendChild(video);
+                    modalBody.appendChild(video);
                 } else {
                     const img = document.createElement('img');
                     img.src = media_path;
-                    dialogBox.appendChild(img);
+                    modalBody.appendChild(img);
                 }
             }
 
-            const rect = target.getBoundingClientRect();
-            dialogBox.style.display = 'block';
-            dialogBox.style.left = `${rect.left + window.scrollX}px`;
-            dialogBox.style.top = `${rect.top + window.scrollY - dialogBox.offsetHeight - 10}px`;
+            modal.style.display = 'block';
 
-            const closeDialog = () => {
-                dialogBox.style.display = 'none';
-                document.removeEventListener('click', closeDialogOnClickOutside);
+            const closeBtn = modal.querySelector('.close-btn');
+            closeBtn.onclick = () => {
+                modal.style.display = 'none';
             };
 
-            const closeDialogOnClickOutside = (e) => {
-                if (!dialogBox.contains(e.target) && e.target !== target) {
-                    closeDialog();
+            window.onclick = (event) => {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
                 }
             };
-
-            dialogBox.addEventListener('mouseleave', closeDialog);
-            document.addEventListener('click', closeDialogOnClickOutside);
         }
 
         function updatePagination(elementId, currentPage, totalPages) {
