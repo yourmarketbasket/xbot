@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Chatter Tweet Scheduler</title>
+    <title>Tweetbot</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -13,8 +13,8 @@
             color: #333;
         }
         .container-fluid {
-            width: 90%;
-            max-width: 1200px;
+            width: 80%;
+            max-width: 1400px;
             margin: 20px auto;
         }
         .form-control, .form-select {
@@ -131,6 +131,7 @@
         .pagination .page-item.active .page-link {
             background-color: #0d6efd;
             border-color: #0d6efd;
+            color: #fff;
         }
         .pagination .page-item.disabled .page-link {
             cursor: not-allowed;
@@ -211,13 +212,13 @@
 </head>
 <body>
     <div class="container-fluid">
-        <h1>Chatter Tweet Scheduler</h1>
+        <h1>Tweetbot</h1>
         <div id="alerts"></div>
 
         <!-- Status Card for Credential and Scheduling Info -->
         <div class="status-card">
             <h5>System Status</h5>
-            <p><strong>Automatic Scheduling:</strong> 6 tweets scheduled every hour, starting next hour.</p>
+            <p><strong>Automatic Scheduling:</strong> 6 tweets scheduled every hour, starting next hour ({{ next_hour }}).</p>
             <p><strong>Active Credential:</strong> <span id="active-credential">Loading...</span></p>
             <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
         </div>
@@ -313,7 +314,7 @@
         }
 
         function formatCountdown(scheduledTime) {
-            if (!scheduledTime) return 'N/A';
+            if (!scheduledTime) return '---';
             const now = new Date();
             const scheduled = new Date(scheduledTime);
             const diffMs = scheduled - now;

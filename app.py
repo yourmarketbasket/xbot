@@ -215,7 +215,7 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
     if target_accounts < 3:
         print(f"Warning: Only {target_accounts} credentials available, need at least 3.")
         return False, None
-    
+
     tweet = None
     if is_instant and message:
         tweet_text = message
@@ -226,69 +226,68 @@ def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
             return False, None
         tweet_text = tweet['message']
         media_path = tweet['media_path']
-    
+
     if random.random() < 0.5:
         tweet_text += " " + random.choice(EXTRA_HASHTAGS)
     if len(tweet_text) > 280:
         tweet_text = tweet_text[:277] + "..."
-    
+
     posted_tweet_ids = []
     posted_emails = []
-    used_indices = []
-    attempts_per_credential = 2  # Allow retry on 429 for each credential
-    start_index = current_credential_index
     
-    for i in range(len(credentials)):
-        credential_index = (start_index + i) % len(credentials)
+    for _ in range(len(credentials)):
         if len(posted_emails) >= target_accounts:
             break
-        if credential_index in used_indices:
+
+        creds = get_current_credentials()
+        if not creds:
+            switch_credentials()
             continue
-        
-        for attempt in range(attempts_per_credential):
-            client_v1 = get_twitter_conn_v1(credential_index)
-            client_v2 = get_twitter_conn_v2(credential_index)
-            if not client_v2 or not client_v1:
-                print(f"Failed to initialize Twitter clients for credential {credential_index + 1}")
-                break
-            
-            media_ids = None
-            if media_path and os.path.exists(media_path):
-                try:
-                    file_size = os.path.getsize(media_path)
-                    if not allowed_file(media_path, file_size):
-                        raise ValueError(f"Invalid media file: {media_path}. Check extension or size.")
-                    print(f"Uploading media: {media_path} for credential {credential_index + 1}")
-                    media = client_v1.media_upload(filename=media_path)
-                    media_ids = [media.media_id_string]
-                    print(f"Media uploaded: {media.media_id_string}")
-                except (tweepy.TweepyException, ValueError) as e:
-                    print(f"Error uploading media for credential {credential_index + 1}: {str(e)}")
-                    break
-            
+
+        client_v1 = get_twitter_conn_v1(current_credential_index)
+        client_v2 = get_twitter_conn_v2(current_credential_index)
+
+        if not client_v1 or not client_v2:
+            print(f"Failed to initialize Twitter clients for {creds['Email']}. Switching credentials.")
+            switch_credentials()
+            continue
+
+        media_ids = None
+        if media_path and os.path.exists(media_path):
             try:
-                response = client_v2.create_tweet(text=tweet_text, media_ids=media_ids)
-                print(f"Tweet posted by {credentials[credential_index]['Email']}: https://x.com/user/status/{response.data['id']}")
-                posted_tweet_ids.append(response.data['id'])
-                posted_emails.append(credentials[credential_index]['Email'])
-                used_indices.append(credential_index)
-                break
-            except tweepy.TweepyException as e:
-                if e.response and e.response.status_code == 429:
-                    print(f"Rate limit hit (429) for credential {credential_index + 1}. Retrying or switching.")
-                    if attempt < attempts_per_credential - 1:
-                        time.sleep(1)
-                        continue
-                    break
-                else:
-                    print(f"Error posting tweet for credential {credential_index + 1}: {str(e)}")
-                    break
-    
+                file_size = os.path.getsize(media_path)
+                if not allowed_file(media_path, file_size):
+                    raise ValueError(f"Invalid media file: {media_path}. Check extension or size.")
+                print(f"Uploading media: {media_path} with {creds['Email']}")
+                media = client_v1.media_upload(filename=media_path)
+                media_ids = [media.media_id_string]
+                print(f"Media uploaded: {media.media_id_string}")
+            except (tweepy.TweepyException, ValueError) as e:
+                print(f"Error uploading media with {creds['Email']}: {str(e)}")
+                switch_credentials()
+                continue
+
+        try:
+            response = client_v2.create_tweet(text=tweet_text, media_ids=media_ids)
+            print(f"Tweet posted by {creds['Email']}: https://x.com/user/status/{response.data['id']}")
+            posted_tweet_ids.append(response.data['id'])
+            posted_emails.append(creds['Email'])
+        except tweepy.TweepyException as e:
+            if e.response and e.response.status_code == 429:
+                print(f"Rate limit hit (429) for {creds['Email']}. Switching credentials.")
+            else:
+                print(f"Error posting tweet with {creds['Email']}: {str(e)}")
+            switch_credentials()
+            continue
+
+        # Switch credential after each successful post to distribute load
+        switch_credentials()
+
     if len(posted_emails) >= target_accounts:
         if tweet:
             tweet['posted'] = True
             tweet['scheduled_time'] = datetime.now(UTC).isoformat()
-            tweet['tweet_id'] = posted_tweet_ids[0]  # Store first tweet ID for reference
+            tweet['tweet_id'] = posted_tweet_ids[0]
             tweet['posted_by'] = posted_emails
             save_tweets_to_file(tweets)
         return True, posted_tweet_ids[0]
@@ -450,7 +449,8 @@ def send_tweet(tweet_id):
 # Main route
 @app.route('/', methods=['GET'])
 def index():
-    return render_template('index.html')
+    next_hour = (datetime.now(UTC) + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+    return render_template('index.html', next_hour=next_hour.strftime('%H:%M:%S'))
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
