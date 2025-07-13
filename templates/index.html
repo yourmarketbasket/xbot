@@ -281,7 +281,7 @@
         <div class="status-card">
             <h5>System Control</h5>
             <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="system-toggle" disabled>
+                <input class="form-check-input" type="checkbox" id="system-toggle">
                 <label class="form-check-label" for="system-toggle">System Offline</label>
             </div>
             <p><strong>System Status:</strong> <span id="system-status" class="fw-bold">Loading...</span></p>
@@ -327,7 +327,6 @@
                     <input type="file" name="file" id="credentials-file" class="form-control" accept=".xlsx">
                 </div>
             </div>
-            <button id="confirm-config-btn" class="btn btn-primary">Confirm Configuration</button>
         </div>
 
         <div class="status-card">
@@ -864,71 +863,53 @@
         const socket = io();
         const consoleOutput = document.getElementById('console-output');
         const systemToggle = document.getElementById('system-toggle');
-        const systemToggleLabel = document.querySelector('label[for="system-toggle"]');
         const tweetsUploadArea = document.getElementById('tweets-upload-area');
         const credentialsUploadArea = document.getElementById('credentials-upload-area');
-        const confirmConfigBtn = document.getElementById('confirm-config-btn');
 
         document.querySelectorAll('input[name="tweet-source"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                tweetsUploadArea.style.display = e.target.value === 'upload' ? 'block' : 'none';
+            radio.addEventListener('change', async (e) => {
+                if (e.target.value === 'upload') {
+                    tweetsUploadArea.style.display = 'block';
+                    const tweetsFile = document.getElementById('tweets-file');
+                    tweetsFile.onchange = async () => {
+                        const formData = new FormData();
+                        formData.append('file', tweetsFile.files[0]);
+                        const response = await fetch('/api/upload_tweets', { method: 'POST', body: formData });
+                        const data = await response.json();
+                        showAlert(data.message, data.success ? 'success' : 'danger');
+                        if(data.success) fetchTweets();
+                    };
+                } else {
+                    tweetsUploadArea.style.display = 'none';
+                    const response = await fetch('/api/set_tweet_source', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ source: 'hardcoded' })
+                    });
+                    const data = await response.json();
+                    showAlert(data.message, data.success ? 'success' : 'danger');
+                    if(data.success) fetchTweets();
+                }
             });
         });
 
         document.querySelectorAll('input[name="credentials-source"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
-                credentialsUploadArea.style.display = e.target.value === 'upload' ? 'block' : 'none';
+                if (e.target.value === 'upload') {
+                    credentialsUploadArea.style.display = 'block';
+                    const credentialsFile = document.getElementById('credentials-file');
+                    credentialsFile.onchange = async () => {
+                        const formData = new FormData();
+                        formData.append('file', credentialsFile.files[0]);
+                        const response = await fetch('/api/upload_credentials', { method: 'POST', body: formData });
+                        const data = await response.json();
+                        showAlert(data.message, data.success ? 'success' : 'danger');
+                        if(data.success) fetchCredentialsStatus();
+                    };
+                } else {
+                    credentialsUploadArea.style.display = 'none';
+                }
             });
-        });
-
-        confirmConfigBtn.addEventListener('click', async () => {
-            const tweetSource = document.querySelector('input[name="tweet-source"]:checked').value;
-            const credentialsSource = document.querySelector('input[name="credentials-source"]:checked').value;
-            let readyToConfirm = true;
-
-            if (tweetSource === 'upload') {
-                const tweetsFile = document.getElementById('tweets-file').files[0];
-                if (!tweetsFile) {
-                    showAlert('Please select a tweets file to upload.', 'warning');
-                    readyToConfirm = false;
-                } else {
-                    const formData = new FormData();
-                    formData.append('file', tweetsFile);
-                    const response = await fetch('/api/upload_tweets', { method: 'POST', body: formData });
-                    const data = await response.json();
-                    showAlert(data.message, data.success ? 'success' : 'danger');
-                    if (!data.success) readyToConfirm = false;
-                }
-            }
-
-            if (credentialsSource === 'upload') {
-                const credentialsFile = document.getElementById('credentials-file').files[0];
-                if (!credentialsFile) {
-                    showAlert('Please select a credentials file to upload.', 'warning');
-                    readyToConfirm = false;
-                } else {
-                    const formData = new FormData();
-                    formData.append('file', credentialsFile);
-                    const response = await fetch('/api/upload_credentials', { method: 'POST', body: formData });
-                    const data = await response.json();
-                    showAlert(data.message, data.success ? 'success' : 'danger');
-                    if (!data.success) readyToConfirm = false;
-                }
-            }
-
-            if(readyToConfirm) {
-                const response = await fetch('/api/confirm_config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tweet_source: tweetSource, credentials_source: credentialsSource })
-                });
-                const data = await response.json();
-                showAlert(data.message, data.success ? 'success' : 'danger');
-                if (data.success) {
-                    systemToggle.disabled = false;
-                    confirmConfigBtn.disabled = true;
-                }
-            }
         });
 
         systemToggle.addEventListener('change', async (e) => {

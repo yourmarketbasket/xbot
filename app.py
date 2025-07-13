@@ -112,7 +112,6 @@ credential_lock = threading.Lock()
 quarantined_credentials = {}  # email -> quarantine_until_datetime
 tweet_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
 system_running = False  # System is not running by default
-config_confirmed = False
 tweet_source = 'hardcoded'
 next_post_time = None
 
@@ -631,9 +630,7 @@ def system_status():
 # API endpoint to start the system
 @app.route('/api/start', methods=['POST'])
 def start_system():
-    global system_running, config_confirmed
-    if not config_confirmed:
-        return jsonify({'success': False, 'message': 'Configuration not confirmed.'}), 400
+    global system_running
     system_running = True
     logging.info("System started by user.")
     return jsonify({'success': True, 'message': 'System started.'})
@@ -672,6 +669,31 @@ def upload_credentials():
             return jsonify({'success': False, 'message': 'Failed to load new credentials.'}), 400
     return jsonify({'success': False, 'message': 'Invalid file type.'}), 400
 
+@app.route('/api/set_tweet_source', methods=['POST'])
+def set_tweet_source_api():
+    global tweet_source, tweets
+    data = request.json
+    source = data.get('source')
+    if source == 'hardcoded':
+        tweet_source = 'hardcoded'
+        media_files = get_media_files()
+        tweets = [
+            {
+                'id': i + 1,
+                'message': msg,
+                'media_path': random.choice(media_files) if media_files else None,
+                'posted': False,
+                'scheduled_time': None,
+                'tweet_id': None,
+                'posted_by': [],
+                'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
+            } for i, msg in enumerate(HARDCODED_TWEETS)
+        ]
+        save_tweets_to_file(tweets)
+        logging.info("Switched to hardcoded tweets.")
+        return jsonify({'success': True, 'message': 'Switched to hardcoded tweets.'})
+    return jsonify({'success': False, 'message': 'Invalid source.'}), 400
+
 @app.route('/api/upload_tweets', methods=['POST'])
 def upload_tweets():
     global tweets, tweet_source
@@ -709,35 +731,6 @@ def upload_tweets():
             return jsonify({'success': False, 'message': 'Error processing file.'}), 500
     return jsonify({'success': False, 'message': 'Invalid file type, please upload a .txt file.'}), 400
 
-@app.route('/api/confirm_config', methods=['POST'])
-def confirm_config():
-    global config_confirmed, tweet_source
-    data = request.json
-    tweet_source_option = data.get('tweet_source')
-    credentials_source_option = data.get('credentials_source')
-
-    if tweet_source_option == 'hardcoded':
-        tweet_source = 'hardcoded'
-        # Re-initialize with hardcoded tweets if needed
-        media_files = get_media_files()
-        tweets = [
-            {
-                'id': i + 1,
-                'message': msg,
-                'media_path': random.choice(media_files) if media_files else None,
-                'posted': False,
-                'scheduled_time': None,
-                'tweet_id': None,
-                'posted_by': [],
-                'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
-            } for i, msg in enumerate(HARDCODED_TWEETS)
-        ]
-        save_tweets_to_file(tweets)
-        logging.info("Using hardcoded tweets.")
-
-    config_confirmed = True
-    logging.info(f"Configuration confirmed: Tweets from '{tweet_source}', Credentials from '{credentials_source_option}'.")
-    return jsonify({'success': True, 'message': 'Configuration confirmed.'})
 
 # Main route
 @app.route('/', methods=['GET'])
