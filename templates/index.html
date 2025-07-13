@@ -461,23 +461,37 @@
                 document.getElementById('next-post-on').textContent = data.next_post_on;
 
                 const quarantinedList = document.getElementById('quarantined-list');
-                quarantinedList.innerHTML = '';
+                const existingEmails = new Set([...quarantinedList.querySelectorAll('span:first-child')].map(el => el.textContent));
+                const incomingEmails = new Set(Object.keys(data.quarantined_credentials));
+
+                // Remove credentials that are no longer quarantined
+                for (const li of quarantinedList.children) {
+                    const email = li.querySelector('span:first-child').textContent;
+                    if (!incomingEmails.has(email)) {
+                        li.remove();
+                    }
+                }
+
+                // Add or update credentials
                 if (Object.keys(data.quarantined_credentials).length > 0) {
                     for (const [email, until] of Object.entries(data.quarantined_credentials)) {
-                        const li = document.createElement('li');
-                        li.className = 'list-group-item d-flex justify-content-between align-items-center';
-                        li.innerHTML = `
-                            <span>${email}</span>
-                            <span class="badge bg-danger text-white rounded-pill countdown" data-countdown-to="${until}"></span>
-                        `;
-                        quarantinedList.appendChild(li);
+                        if (!existingEmails.has(email)) {
+                            const li = document.createElement('li');
+                            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                            li.innerHTML = `
+                                <span>${email}</span>
+                                <span class="badge bg-danger text-white rounded-pill countdown" data-countdown-to="${until}"></span>
+                            `;
+                            quarantinedList.appendChild(li);
+                        }
                     }
-                } else {
-                    const li = document.createElement('li');
+                } else if (quarantinedList.children.length === 0) {
+                     const li = document.createElement('li');
                     li.className = 'list-group-item';
                     li.textContent = 'None';
                     quarantinedList.appendChild(li);
                 }
+
             } catch (error) {
                 console.error('Error fetching system status:', error);
                 document.getElementById('next-post-on').textContent = 'Error';
