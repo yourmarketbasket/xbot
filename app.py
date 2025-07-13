@@ -9,6 +9,7 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit
 import pandas as pd
 import logging
+import sys
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -23,9 +24,22 @@ class SocketIOHandler(logging.Handler):
         log_entry = self.format(record)
         socketio.emit('log_message', {'data': log_entry})
 
+class SocketIOStream:
+    def __init__(self, logger):
+        self.logger = logger
+
+    def write(self, message):
+        self.logger.info(message.strip())
+
+    def flush(self):
+        pass
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(SocketIOHandler())
+
+sys.stdout = SocketIOStream(logger)
+sys.stderr = SocketIOStream(logger)
 
 # Extra hashtags for engagement
 EXTRA_HASHTAGS = ["#SocialMedia", "#Tech", "#Community", "#AppOfTheDay", "#StayConnected"]
