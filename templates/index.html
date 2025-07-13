@@ -68,6 +68,41 @@
             vertical-align: middle;
             border-color: #dee2e6;
         }
+        .message-cell {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .ellipsis-btn {
+            cursor: pointer;
+            color: #0d6efd;
+            font-weight: bold;
+        }
+        .dialog-box {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            z-index: 1050;
+            max-width: 500px;
+            word-wrap: break-word;
+        }
+        .dialog-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1040;
+        }
         .table tbody tr {
             transition: background-color 0.2s ease;
         }
@@ -211,6 +246,8 @@
     </style>
 </head>
 <body>
+    <div id="dialog-overlay"></div>
+    <div id="dialog-box" class="dialog-box"></div>
     <div class="container-fluid">
         <h1>Tweetbot</h1>
         <div id="alerts"></div>
@@ -401,12 +438,27 @@
             tweets.forEach(tweet => {
                 const row = document.createElement('tr');
                 row.className = tweet.posted ? 'posted' : tweet.scheduled_time ? 'scheduled' : '';
-                row.innerHTML = `
-                    <td>${tweet.message}</td>
+
+                const messageCell = document.createElement('td');
+                if (tweet.message.length > 50) {
+                    messageCell.innerHTML = `
+                        <span class="message-cell">${tweet.message.substring(0, 50)}</span>
+                        <span class="ellipsis-btn">...</span>
+                    `;
+                    messageCell.querySelector('.ellipsis-btn').addEventListener('click', () => {
+                        showDialog(tweet.message);
+                    });
+                } else {
+                    messageCell.textContent = tweet.message;
+                }
+
+                row.appendChild(messageCell);
+
+                row.innerHTML += `
                     <td>${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}</td>
                     <td>${tweet.scheduled_time ? new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' }) : 'Not Scheduled'}</td>
                     <td class="countdown" data-scheduled-time="${tweet.scheduled_time}">${formatCountdown(tweet.scheduled_time)}</td>
-                    <td>${tweet.posted ? 'Posted' : tweet.scheduled_time ? 'Scheduled' : 'Not Scheduled'}</td>
+                    <td>${tweet.posted ? '✔️' : tweet.scheduled_time ? '✔️' : '❌'}</td>
                     <td class="posted-by">${tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A'}</td>
                     <td>${tweet.posted ? '<span class="text-muted">Posted</span>' : tweet.scheduled_time ? '<span class="text-muted">Scheduled</span>' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})">Send Now</button>`}</td>
                 `;
@@ -414,6 +466,18 @@
             });
             updatePagination('scheduled-pagination', page, totalPages);
             updateCountdowns();
+        }
+
+        function showDialog(message) {
+            const dialogBox = document.getElementById('dialog-box');
+            const dialogOverlay = document.getElementById('dialog-overlay');
+            dialogBox.textContent = message;
+            dialogBox.style.display = 'block';
+            dialogOverlay.style.display = 'block';
+            dialogOverlay.addEventListener('click', () => {
+                dialogBox.style.display = 'none';
+                dialogOverlay.style.display = 'none';
+            });
         }
 
         function updatePagination(elementId, currentPage, totalPages) {
