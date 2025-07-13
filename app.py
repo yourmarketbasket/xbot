@@ -110,6 +110,7 @@ current_credential_index = 0
 credential_lock = threading.Lock()
 quarantined_credentials = {}  # email -> quarantine_until_datetime
 tweet_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
+next_post_time = None
 
 # Get current Twitter/X API credentials
 def get_current_credentials(index=None):
