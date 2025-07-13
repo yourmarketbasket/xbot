@@ -501,6 +501,13 @@ def send_tweet(tweet_id):
         return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully!'})
     return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id}.'}), 500
 
+# API endpoint to switch credentials
+@app.route('/api/switch_credential', methods=['POST'])
+def switch_credential_api():
+    switch_credentials()
+    creds = get_current_credentials()
+    return jsonify({'success': True, 'message': f"Switched to {creds['Email']}"})
+
 # API endpoint for system status
 @app.route('/api/system_status', methods=['GET'])
 def system_status():

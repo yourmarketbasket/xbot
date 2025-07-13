@@ -223,6 +223,9 @@
             margin-top: 30px;
             margin-bottom: 15px;
         }
+        .switch-credential-btn {
+            margin-left: 10px;
+        }
         @media (max-width: 768px) {
             .container-fluid {
                 width: 95%;
@@ -276,7 +279,10 @@
             <h5>System Status</h5>
             <p><strong>Automatic Scheduling:</strong> Up to 17 random tweets posted daily per credential.</p>
             <p><strong>Next Post On:</strong> <span id="next-post-on">Loading...</span> (Nairobi Time)</p>
-            <p><strong>Active Credential:</strong> <span id="active-credential">Loading...</span></p>
+            <p>
+                <strong>Active Credential:</strong> <span id="active-credential">Loading...</span>
+                <button id="switch-credential-btn" class="btn btn-secondary btn-sm switch-credential-btn">Switch Credential</button>
+            </p>
             <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
             <p><strong>Quarantined Credentials:</strong> <span id="quarantined-credentials">None</span></p>
         </div>
@@ -544,6 +550,22 @@
                 }
             };
         }
+
+        async function switchCredential() {
+            try {
+                const response = await fetch('/api/switch_credential', { method: 'POST' });
+                const data = await response.json();
+                showAlert(data.message, data.success ? 'success' : 'danger');
+                if (data.success) {
+                    fetchCredentialsStatus();
+                }
+            } catch (error) {
+                console.error('Error switching credential:', error);
+                showAlert('Failed to switch credential due to network error.', 'danger');
+            }
+        }
+
+        document.getElementById('switch-credential-btn').addEventListener('click', switchCredential);
 
         function updatePagination(elementId, currentPage, totalPages) {
             const pagination = document.getElementById(elementId);
