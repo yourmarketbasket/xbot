@@ -2,14 +2,19 @@ import os
 import random
 import json
 import threading
-import time
 from datetime import datetime, UTC, timedelta
-import tweepy
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit
-import pandas as pd
 import logging
 import sys
+from utility import (
+    load_credentials, get_current_credentials, switch_credentials,
+    get_media_files, save_tweets_to_file, basename_filter,
+    post_tweet, check_credential_health, schedule_and_post_tweets,
+    allowed_file,
+    credentials, tweets, scheduled_tweets, next_post_time,
+    quarantined_credentials
+)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -18,36 +23,6 @@ app.config['SECRET_KEY'] = os.urandom(24).hex()
 app.config['UPLOAD_FOLDER'] = 'media/'
 app.config['TWEET_STORAGE'] = 'tweets.json'
 app.config['CREDENTIALS_FILE'] = 'credentials.xlsx'
-
-class SocketIOHandler(logging.Handler):
-    def emit(self, record):
-        log_entry = self.format(record)
-        socketio.emit('log_message', {'data': log_entry})
-
-class SocketIOStream:
-    def __init__(self, logger):
-        self.logger = logger
-
-    def write(self, message):
-        self.logger.info(message.strip())
-
-    def flush(self):
-        pass
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logger.addHandler(SocketIOHandler())
-
-sys.stdout = SocketIOStream(logger)
-sys.stderr = SocketIOStream(logger)
-
-# Extra hashtags for engagement
-EXTRA_HASHTAGS = ["#SocialMedia", "#Tech", "#Community", "#AppOfTheDay", "#StayConnected"]
-
-# Allowed media extensions and size limits
-ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.mp4', '.mov'}
-MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
-MAX_VIDEO_SIZE = 512 * 1024 * 1024  # 512MB
 
 # Hardcoded tweets about Chatter
 HARDCODED_TWEETS = [
@@ -73,187 +48,32 @@ HARDCODED_TWEETS = [
     "Kenya, be free! 🗣️ #Chatter: no phone 📵, no name, just an alias 🎭. Download now! 📥 https://codethelabs.com/assets/files/chatter.apk #DigitalFreedom Speak without fear, stay anonymous. 😎🔥 Join the secure chat revolution in Kenya. 💬🔒 Express yourself boldly! 🕵️"
 ]
 
-# Load credentials from Excel file
-def load_credentials(filepath=None):
-    """
-    Loads credentials from an Excel file and validates them.
+class SocketIOHandler(logging.Handler):
+    def emit(self, record):
+        log_entry = self.format(record)
+        socketio.emit('log_message', {'data': log_entry})
 
-    Args:
-        filepath (str, optional): Path to the credentials file. Defaults to None.
+class SocketIOStream:
+    def __init__(self, logger):
+        self.logger = logger
+    def write(self, message):
+        self.logger.info(message.strip())
+    def flush(self):
+        pass
 
-    Returns:
-        list: A list of valid credentials, or an empty list if errors occur.
-    """
-    if filepath is None:
-        filepath = app.config['CREDENTIALS_FILE']
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(SocketIOHandler())
 
-    try:
-        if not os.path.exists(filepath):
-            logger.info(f"Error: Credentials file '{filepath}' not found.")
-            return []
+sys.stdout = SocketIOStream(logger)
+sys.stderr = SocketIOStream(logger)
 
-        df = pd.read_excel(filepath, sheet_name='Sheet1')
-        required_columns = ['Email', 'API KEY', 'API KEY SECRET', 'ACCESS TOKEN', 'ACCESS TOKEN SECRET']
-
-        if not all(col in df.columns for col in required_columns):
-            missing_cols = [col for col in required_columns if col not in df.columns]
-            logger.info(f"Error: Missing required columns in '{filepath}': {', '.join(missing_cols)}")
-            return []
-
-        # Drop rows with any missing values in the required columns
-        df.dropna(subset=required_columns, inplace=True)
-
-        if df.empty:
-            logger.info("No valid credentials found in the Excel file after cleaning.")
-            return []
-
-        credentials = df[required_columns].to_dict('records')
-        logger.info(f"Successfully loaded and validated {len(credentials)} credentials from '{app.config['CREDENTIALS_FILE']}'.")
-        return credentials
-
-    except FileNotFoundError:
-        logger.info(f"Error: The credentials file '{app.config['CREDENTIALS_FILE']}' was not found.")
-        return []
-    except Exception as e:
-        logger.info(f"An unexpected error occurred while loading credentials: {str(e)}")
-        return []
-
-# Global credentials management
-credentials = load_credentials()
-current_credential_index = 0
-credential_lock = threading.Lock()
-quarantined_credentials = {}  # email -> quarantine_until_datetime
-tweet_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
-next_post_time = None
-
-# Get current Twitter/X API credentials
-def get_current_credentials(index=None):
-    global credentials, current_credential_index
-    with credential_lock:
-        if not credentials:
-            logger.info("No credentials available.")
-            return None
-        if index is None:
-            index = current_credential_index
-        return credentials[index % len(credentials)]
-
-# Switch to next credentials
-def switch_credentials():
-    global current_credential_index
-    with credential_lock:
-        if not credentials:
-            logger.info("No credentials to switch to.")
-            return
-        current_credential_index = (current_credential_index + 1) % len(credentials)
-        logger.info(f"Switched to credential set {current_credential_index + 1} ({credentials[current_credential_index]['Email']})")
-
-# Get list of media files from media/ directory
-def get_media_files():
-    media_dir = app.config['UPLOAD_FOLDER']
-    if not os.path.exists(media_dir):
-        logger.info(f"Media directory {media_dir} does not exist.")
-        os.makedirs(media_dir, exist_ok=True)
-        return []
-    media_files = [
-        os.path.join(media_dir, f) for f in os.listdir(media_dir)
-        if os.path.splitext(f.lower())[1] in ALLOWED_EXTENSIONS
-    ]
-    return media_files
-
-# Save tweets to file
-def save_tweets_to_file(tweets):
-    try:
-        with open(app.config['TWEET_STORAGE'], 'w') as f:
-            json.dump(tweets, f, default=str)
-    except Exception as e:
-        logger.info(f"Error saving tweets to file: {str(e)}")
-
-# Custom Jinja2 filter for basename
-def basename_filter(path):
-    return os.path.basename(path) if path else 'None'
-
-# Load initial tweet storage
-tweets = []
-if os.path.exists(app.config['TWEET_STORAGE']):
-    with open(app.config['TWEET_STORAGE'], 'r') as f:
-        tweets = json.load(f)
-
-# Initialize scheduled tweets array
-scheduled_tweets = []
-
-# Register custom Jinja2 filter
 app.jinja_env.filters['basename'] = basename_filter
 
-# Cooldown time between tweets
-COOLDOWN_TIME = 30  # 30 seconds
-
-# Twitter/X API connections
-def get_twitter_conn_v1(credential_index):
-    creds = get_current_credentials(credential_index)
-    if not creds:
-        logger.info("No credentials available for v1 connection.")
-        return None, "no_credentials"
-    try:
-        auth = tweepy.OAuth1UserHandler(
-            creds['API KEY'],
-            creds['API KEY SECRET'],
-            creds['ACCESS TOKEN'],
-            creds['ACCESS TOKEN SECRET']
-        )
-        api = tweepy.API(auth, wait_on_rate_limit=False)
-        api.verify_credentials()
-        logger.info(f"Credentials for {creds['Email']} verified successfully for v1")
-        return api, "success"
-    except tweepy.errors.TweepyException as e:
-        if "429" in str(e):
-            logger.info(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
-            quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=12)
-            return None, "rate_limited"
-        else:
-            logger.info(f"Error verifying credentials for {creds['Email']} (v1): {str(e)}")
-            return None, "error"
-
-def get_twitter_conn_v2(credential_index):
-    creds = get_current_credentials(credential_index)
-    if not creds:
-        logger.info("No credentials available for v2 connection.")
-        return None, "no_credentials"
-    try:
-        client = tweepy.Client(
-            consumer_key=creds['API KEY'],
-            consumer_secret=creds['API KEY SECRET'],
-            access_token=creds['ACCESS TOKEN'],
-            access_token_secret=creds['ACCESS TOKEN SECRET']
-        )
-        client.get_me()
-        logger.info(f"OAuth 1.0a v2 client initialized for {creds['Email']}")
-        return client, "success"
-    except tweepy.errors.TweepyException as e:
-        if "429" in str(e):
-            logger.info(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
-            quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=12)
-            return None, "rate_limited"
-        else:
-            logger.info(f"Error initializing v2 client for {creds['Email']}: {str(e)}")
-            return None, "error"
-
-# Validate file extension and size
-def allowed_file(filename, file_size):
-    ext = os.path.splitext(filename.lower())[1]
-    if ext not in ALLOWED_EXTENSIONS:
-        return False
-    if ext in {'.png', '.jpg', '.jpeg'} and file_size > MAX_IMAGE_SIZE:
-        return False
-    if ext in {'.mp4', '.mov'} and file_size > MAX_VIDEO_SIZE:
-        return False
-    return True
-
-# Serve media files
 @app.route('/media/<path:filename>')
 def serve_media(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# API endpoint for credentials status
 @app.route('/api/credentials_status', methods=['GET'])
 def credentials_status():
     creds = get_current_credentials()
@@ -262,430 +82,148 @@ def credentials_status():
         'total_credentials': len(credentials)
     })
 
-def _prepare_tweet_text(base_text):
-    """
-    Prepares the tweet text by adding extra hashtags and truncating if necessary.
-    """
-    if random.random() < 0.5:
-        base_text += " " + random.choice(EXTRA_HASHTAGS)
-    if len(base_text) > 280:
-        return base_text[:277] + "..."
-    return base_text
-
-def _upload_media(client_v1, media_path, email):
-    """
-    Uploads media to Twitter.
-    """
-    if not media_path or not os.path.exists(media_path):
-        return None
-    try:
-        file_size = os.path.getsize(media_path)
-        if not allowed_file(media_path, file_size):
-            raise ValueError(f"Invalid media file: {media_path}. Check extension or size.")
-        logger.info(f"Uploading media: {media_path} with {email}")
-
-        ext = os.path.splitext(media_path.lower())[1]
-        if ext in {'.mp4', '.mov'}:
-            media = client_v1.media_upload(filename=media_path, media_category='tweet_video')
-        else:
-            media = client_v1.media_upload(filename=media_path)
-
-        logger.info(f"Media uploaded: {media.media_id_string}")
-        return [media.media_id_string]
-    except (tweepy.TweepyException, ValueError) as e:
-        logger.info(f"Error uploading media with {email}: {str(e)}")
-        return None
-
-# Post tweet with optional media
-def post_tweet(tweet_id=None, message=None, media_path=None, is_instant=False):
-    global current_credential_index
-    if not credentials:
-        logger.info("Warning: No credentials available.")
-        return False, None
-
-    tweet = None
-    if is_instant and message:
-        tweet_text = message
-    else:
-        tweet = next((t for t in tweets if t['id'] == tweet_id), None)
-        if not tweet or tweet['posted']:
-            logger.info(f"Tweet {tweet_id} not found or already posted.")
-            return False, None
-        tweet_text = tweet['message']
-        media_path = tweet['media_path']
-
-    tweet_text = _prepare_tweet_text(tweet_text)
-
-    posted_tweet_ids = []
-    posted_emails = []
-    
-    for _ in range(len(credentials)):
-        creds = get_current_credentials()
-        if not creds:
-            switch_credentials()
-            continue
-
-        client_v1, v1_status = get_twitter_conn_v1(current_credential_index)
-        client_v2, v2_status = get_twitter_conn_v2(current_credential_index)
-
-        if v1_status == "rate_limited" or v2_status == "rate_limited":
-            switch_credentials()
-            continue
-
-        if not client_v1 or not client_v2:
-            logger.info(f"Failed to initialize Twitter clients for {creds['Email']}. Switching credentials.")
-            switch_credentials()
-            continue
-
-        media_ids = _upload_media(client_v1, media_path, creds['Email'])
-        if media_ids is None and media_path:
-            switch_credentials()
-            continue
-
-        # Check if the credential has exceeded its daily tweet limit
-        today = datetime.now(UTC).date()
-        if tweet_counts[creds['Email']]['date'] < today:
-            tweet_counts[creds['Email']] = {'count': 0, 'date': today}
-
-        if tweet_counts[creds['Email']]['count'] >= 17:
-            logger.info(f"Credential {creds['Email']} has reached its daily limit of 17 tweets.")
-            quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=24)
-            switch_credentials()
-            continue
-
-        try:
-            response = client_v2.create_tweet(text=tweet_text, media_ids=media_ids)
-            logger.info(f"Tweet posted by {creds['Email']}: https://x.com/user/status/{response.data['id']}")
-            posted_tweet_ids.append(response.data['id'])
-            posted_emails.append(creds['Email'])
-            tweet_counts[creds['Email']]['count'] += 1
-        except tweepy.errors.TweepyException as e:
-            if e.response and e.response.status_code == 429:
-                logger.info(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
-                quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=12)
-                switch_credentials()
-                return 'rate_limited', None
-            else:
-                logger.info(f"Error posting tweet with {creds['Email']}: {str(e)}")
-            switch_credentials()
-            continue
-
-        switch_credentials()
-
-        if tweet:
-            tweet['posted'] = True
-            tweet['scheduled_time'] = datetime.now(UTC).isoformat()
-            tweet['tweet_id'] = posted_tweet_ids[0]
-            tweet['posted_by'] = posted_emails
-            save_tweets_to_file(tweets)
-
-        # Cooldown after a successful tweet
-        logger.info(f"Cooldown for {COOLDOWN_TIME} seconds...")
-        time.sleep(COOLDOWN_TIME)
-
-        return True, posted_tweet_ids[0]
-
-    logger.info(f"Failed to post tweet. All credentials failed.")
-    return False, None
-
-# Credential health check
-def check_credential_health():
-    """
-    Periodically checks the health of credentials and removes them from quarantine if the time has passed.
-    """
-    global quarantined_credentials
-    while True:
-        now = datetime.now(UTC)
-        for email, quarantine_until in list(quarantined_credentials.items()):
-            if now >= quarantine_until:
-                logger.info(f"Removing {email} from quarantine.")
-                del quarantined_credentials[email]
-        time.sleep(60)  # Check every minute
-
-
-# Background thread to schedule and post 17 tweets per day per credential
-def schedule_and_post_tweets():
-    """
-    Schedules and posts tweets automatically, respecting rate limits and daily caps.
-    """
-    global scheduled_tweets, current_credential_index, next_post_time
-    backoff_time = 60  # Initial backoff time in seconds
-
-    while True:
-        now = datetime.now(UTC)
-        
-        active_credentials = [c for c in credentials if c['Email'] not in quarantined_credentials]
-        if not active_credentials:
-            logger.info("All credentials are an unavailable. Waiting...")
-            time.sleep(600)
-            continue
-
-        for cred in active_credentials:
-            email = cred['Email']
-
-            # Reset daily tweet count if a new day has started
-            if now.date() > tweet_counts[email]['date']:
-                tweet_counts[email]['count'] = 0
-                tweet_counts[email]['date'] = now.date()
-
-            # Check if the credential can post
-            if tweet_counts[email]['count'] < 17:
-                available_tweets = [t for t in tweets if not t['posted'] and t['scheduled_time'] is None]
-                if not available_tweets:
-                    break
-
-                tweet_to_post = random.choice(available_tweets)
-
-                # Schedule the next post with a random delay
-                delay = random.randint(1800, 3600) # 30-60 minutes
-                next_post_time = (now + timedelta(seconds=delay)).isoformat()
-                logger.info(f"Next post for {email} scheduled around {next_post_time}")
-                time.sleep(delay)
-
-                with credential_lock:
-                    # Set the current credential to the one we want to use
-                    original_index = current_credential_index
-                    try:
-                        cred_index = [c['Email'] for c in credentials].index(email)
-                        current_credential_index = cred_index
-                    except ValueError:
-                        continue # Credential not found
-
-                    status, _ = post_tweet(tweet_id=tweet_to_post['id'])
-
-                    # Restore the original credential index
-                    current_credential_index = original_index
-
-                if status == 'rate_limited':
-                    logger.info(f"Rate limited. Backing off for {backoff_time} seconds.")
-                    time.sleep(backoff_time)
-                    backoff_time = min(backoff_time * 2, 3600)  # Exponential backoff
-                elif status:
-                    logger.info(f"Posted tweet {tweet_to_post['id']} with {email}. Total for {email} today: {tweet_counts[email]['count']}/17")
-                    next_post_time = None
-                    backoff_time = 60  # Reset backoff time on success
-
-        # Wait before the next cycle
-        time.sleep(600)
-
-# Start background threads
 @app.route('/api/start_system', methods=['POST'])
 def start_system():
     if not credentials or not tweets:
         return jsonify({'success': False, 'message': 'Credentials and tweets must be loaded first.'}), 400
-
-    threading.Thread(target=schedule_and_post_tweets, daemon=True).start()
+    threading.Thread(target=schedule_and_post_tweets, args=(app.config,), daemon=True).start()
     threading.Thread(target=check_credential_health, daemon=True).start()
-
     return jsonify({'success': True, 'message': 'System started successfully.'})
 
-# API endpoint to get all tweets
 @app.route('/api/tweets', methods=['GET'])
 def get_tweets():
-    global tweets
     TWEETS_PER_PAGE = 5
     page = request.args.get('page', 1, type=int)
-    
-    all_tweets = tweets
-    total_pages = max(1, (len(all_tweets) + TWEETS_PER_PAGE - 1) // TWEETS_PER_PAGE)
+    total_pages = max(1, (len(tweets) + TWEETS_PER_PAGE - 1) // TWEETS_PER_PAGE)
     page = max(1, min(page, total_pages))
     start = (page - 1) * TWEETS_PER_PAGE
     end = start + TWEETS_PER_PAGE
-    
     return jsonify({
-        'tweets': all_tweets[start:end],
+        'tweets': tweets[start:end],
         'page': page,
         'total_pages': total_pages,
         'tweets_per_page': TWEETS_PER_PAGE
     })
 
-# API endpoint to schedule tweets manually
 @app.route('/api/schedule', methods=['POST'])
-def schedule_tweets():
-    global tweets, scheduled_tweets
+def schedule_tweets_api():
     form_data = request.form
     num_posts = form_data.get('num_posts', type=int)
     scheduled_time = form_data.get('scheduled_time')
-    
-    if not num_posts or num_posts < 1 or num_posts > len(HARDCODED_TWEETS):
-        return jsonify({'success': False, 'message': f'Please select between 1 and {len(HARDCODED_TWEETS)} posts.'}), 400
-    
+    if not num_posts or not (1 <= num_posts <= len(HARDCODED_TWEETS)):
+        return jsonify({'success': False, 'message': f'Select between 1 and {len(HARDCODED_TWEETS)} posts.'}), 400
     try:
-        scheduled_dt = datetime.fromisoformat(scheduled_time)
-        scheduled_dt = scheduled_dt.replace(tzinfo=UTC)
-        now = datetime.now(UTC)
-        if scheduled_dt <= now:
+        scheduled_dt = datetime.fromisoformat(scheduled_time).replace(tzinfo=UTC)
+        if scheduled_dt <= datetime.now(UTC):
             return jsonify({'success': False, 'message': 'Scheduled time must be in the future.'}), 400
     except ValueError:
         return jsonify({'success': False, 'message': 'Invalid scheduled time format.'}), 400
     
-    available_tweets = [t for t in tweets if not t['posted'] and t['scheduled_time'] is None]
-    if len(available_tweets) < num_posts:
-        return jsonify({'success': False, 'message': 'Not enough available tweets to schedule.'}), 400
+    available = [t for t in tweets if not t['posted'] and not t.get('scheduled_time')]
+    if len(available) < num_posts:
+        return jsonify({'success': False, 'message': 'Not enough available tweets.'}), 400
     
-    selected_tweets = random.sample(available_tweets, num_posts)
-    for tweet in selected_tweets:
+    for tweet in random.sample(available, num_posts):
         tweet['scheduled_time'] = scheduled_dt.isoformat()
-        scheduled_tweets.append({
-            'id': tweet['id'],
-            'message': tweet['message'],
-            'media_path': tweet['media_path'],
-            'scheduled_time': tweet['scheduled_time'],
-            'posted': False
-        })
-        logger.info(f"Scheduled tweet {tweet['id']} at {scheduled_dt}")
-    
-    save_tweets_to_file(tweets)
-    
+        scheduled_tweets.append({**tweet})
+    save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
     return jsonify({'success': True, 'message': f'{num_posts} tweets scheduled successfully!'})
 
-# API endpoint to post tweet immediately
 @app.route('/api/post_tweet', methods=['POST'])
 def post_tweet_now():
-    global tweets
-    form_data = request.form
-    message = form_data.get('message')
+    message = request.form.get('message', '').strip()
     media_file = request.files.get('media')
-    media_path = None
-    
-    if not message or not message.strip():
+    if not message:
         return jsonify({'success': False, 'message': 'Please provide a tweet message.'}), 400
-    
     if len(message) > 280:
-        return jsonify({'success': False, 'message': f'Message too long (max 280 characters): {message[:50]}...'}), 400
+        return jsonify({'success': False, 'message': 'Message too long (max 280 characters).'}), 400
     
+    media_path = None
     if media_file and media_file.filename:
         file_size = len(media_file.read())
         media_file.seek(0)
         if not allowed_file(media_file.filename, file_size):
-            return jsonify({'success': False, 'message': f'Invalid media file: {media_file.filename}. Must be PNG/JPG/MP4/MOV, max 5MB for images, 512MB for videos.'}), 400
-        try:
-            media_path = os.path.join(app.config['UPLOAD_FOLDER'], media_file.filename)
-            media_file.save(media_path)
-        except Exception as e:
-            logger.info(f"Error saving file {media_file.filename}: {str(e)}")
-            return jsonify({'success': False, 'message': f'Error saving media file: {str(e)}'}), 500
+            return jsonify({'success': False, 'message': 'Invalid media file.'}), 400
+        media_path = os.path.join(app.config['UPLOAD_FOLDER'], media_file.filename)
+        media_file.save(media_path)
     
-    success, posted_tweet_id = post_tweet(message=message, media_path=media_path, is_instant=True)
+    success, posted_tweet_id = post_tweet(app.config, message=message, media_path=media_path, is_instant=True)
     if success:
-        max_id = max((t['id'] for t in tweets), default=0)
-        successful_credential_email = get_current_credentials()['Email']
-        tweets.append({
-            'id': max_id + 1,
-            'message': message,
-            'media_path': media_path,
-            'posted': True,
+        new_tweet = {
+            'id': max((t['id'] for t in tweets), default=0) + 1,
+            'message': message, 'media_path': media_path, 'posted': True,
             'scheduled_time': datetime.now(UTC).isoformat(),
             'tweet_id': posted_tweet_id,
-            'posted_by': [successful_credential_email],
+            'posted_by': [get_current_credentials()['Email']],
             'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
-        })
-        save_tweets_to_file(tweets)
-        return jsonify({'success': True, 'message': f'Tweet posted successfully! View it at https://x.com/user/status/{posted_tweet_id}'})
+        }
+        tweets.append(new_tweet)
+        save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
+        return jsonify({'success': True, 'message': f'Tweet posted! View at https://x.com/user/status/{posted_tweet_id}'})
     return jsonify({'success': False, 'message': 'Failed to post tweet.'}), 500
 
-# API endpoint to send tweet immediately
 @app.route('/api/send/<int:tweet_id>', methods=['POST'])
 def send_tweet(tweet_id):
-    status, posted_tweet_id = post_tweet(tweet_id)
+    status, _ = post_tweet(app.config, tweet_id=tweet_id)
     if status == 'rate_limited':
-        return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id}. Rate limit hit.'}), 500
-    elif status:
+        return jsonify({'success': False, 'message': 'Rate limit hit.'}), 500
+    if status:
         global scheduled_tweets
-        scheduled_tweets[:] = [t for t in scheduled_tweets if t['id'] != tweet_id]
+        scheduled_tweets = [t for t in scheduled_tweets if t['id'] != tweet_id]
         return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully!'})
-    return jsonify({'success': False, 'message': f'Failed to post tweet {tweet_id}.'}), 500
+    return jsonify({'success': False, 'message': 'Failed to post tweet.'}), 500
 
-# API endpoint to switch credentials
 @app.route('/api/switch_credential', methods=['POST'])
 def switch_credential_api():
     switch_credentials()
     creds = get_current_credentials()
     return jsonify({'success': True, 'message': f"Switched to {creds['Email']}"})
 
-# API endpoint for system status
 @app.route('/api/system_status', methods=['GET'])
 def system_status():
-    global next_post_time
     nairobi_time = "Not scheduled"
     if next_post_time:
         utc_time = datetime.fromisoformat(next_post_time)
-        nairobi_tz = timedelta(hours=3)
-        nairobi_time = (utc_time + nairobi_tz).strftime('%Y-%m-%d %H:%M:%S')
-
-    quarantined = {email: until.isoformat() for email, until in quarantined_credentials.items()}
-
+        nairobi_time = (utc_time + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
     return jsonify({
         'next_post_on': nairobi_time,
-        'quarantined_credentials': quarantined
+        'quarantined_credentials': {e: u.isoformat() for e, u in quarantined_credentials.items()}
     })
 
-# New endpoint for file uploads and verification
 @app.route('/api/upload', methods=['POST'])
 def upload_files():
-    global credentials, tweets
-
-    # Handle credential file upload
     if 'credentials' in request.files:
-        credential_file = request.files['credentials']
-        if credential_file.filename == '':
+        f = request.files['credentials']
+        if f.filename == '':
             return jsonify({'success': False, 'message': 'No selected file for credentials.'}), 400
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_credentials.xlsx')
+        f.save(filepath)
+        if not load_credentials(filepath, app.config):
+            return jsonify({'success': False, 'message': 'Invalid or empty credentials file.'}), 400
+        return jsonify({'success': True, 'message': 'Credentials uploaded and verified.'})
 
-        try:
-            # Save the uploaded file temporarily
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_credentials.xlsx')
-            credential_file.save(filepath)
-
-            # Validate and load credentials
-            loaded_credentials = load_credentials(filepath)
-            if not loaded_credentials:
-                return jsonify({'success': False, 'message': 'Invalid or empty credentials file.'}), 400
-
-            credentials = loaded_credentials
-            return jsonify({'success': True, 'message': 'Credentials uploaded and verified successfully.'})
-
-        except Exception as e:
-            return jsonify({'success': False, 'message': f'Error processing credentials file: {str(e)}'}), 500
-
-   
     if 'tweets' in request.files:
-        tweet_file = request.files['tweets']
-        if tweet_file.filename == '':
+        f = request.files['tweets']
+        if f.filename == '':
             return jsonify({'success': False, 'message': 'No selected file for tweets.'}), 400
-
         try:
-            # Read and parse the tweet file
-            tweet_content = tweet_file.read().decode('utf-8')
-            tweet_data = json.loads(tweet_content)
-
-            if not isinstance(tweet_data, list) or not all(isinstance(t, str) for t in tweet_data):
+            data = json.loads(f.read().decode('utf-8'))
+            if not isinstance(data, list) or not all(isinstance(t, str) for t in data):
                 return jsonify({'success': False, 'message': 'Tweets must be an array of strings.'}), 400
-
-            # Format tweets
+            global tweets
             tweets = [
-                {
-                    'id': i + 1,
-                    'message': msg,
-                    'media_path': None, # No media for uploaded tweets
-                    'posted': False,
-                    'scheduled_time': None,
-                    'tweet_id': None,
-                    'posted_by': [],
-                    'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
-                } for i, msg in enumerate(tweet_data)
+                {'id': i + 1, 'message': msg, 'media_path': None, 'posted': False,
+                 'scheduled_time': None, 'tweet_id': None, 'posted_by': [],
+                 'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}}
+                for i, msg in enumerate(data)
             ]
-            save_tweets_to_file(tweets)
-
-            return jsonify({'success': True, 'message': 'Tweets uploaded and verified successfully.'})
-
-        except json.JSONDecodeError:
-            return jsonify({'success': False, 'message': 'Invalid JSON format for tweets.'}), 400
-        except Exception as e:
-            return jsonify({'success': False, 'message': f'Error processing tweets file: {str(e)}'}), 500
+            save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
+            return jsonify({'success': True, 'message': 'Tweets uploaded and verified.'})
+        except (json.JSONDecodeError, Exception) as e:
+            return jsonify({'success': False, 'message': f'Error processing tweets file: {e}'}), 500
 
     return jsonify({'success': False, 'message': 'No files were uploaded.'}), 400
 
-# New endpoint to check for credentials and tweets
 @app.route('/api/status', methods=['GET'])
 def get_status():
     return jsonify({
@@ -695,42 +233,31 @@ def get_status():
 
 @app.route('/api/use_default_credentials', methods=['POST'])
 def use_default_credentials():
-    global credentials
-    use_default = request.json.get('use_default', False)
-    if use_default:
-        credentials = load_credentials()
-        if credentials:
-            return jsonify({'success': True, 'message': 'Default credentials loaded successfully.'})
+    if request.json.get('use_default'):
+        if load_credentials(app.config['CREDENTIALS_FILE'], app.config):
+            return jsonify({'success': True, 'message': 'Default credentials loaded.'})
         return jsonify({'success': False, 'message': 'Failed to load default credentials.'})
+    global credentials
     credentials = []
     return jsonify({'success': True, 'message': 'Default credentials unchecked.'})
-# New endpoint to use default tweets
 
 @app.route('/api/use_default_tweets', methods=['POST'])
 def use_default_tweets():
     global tweets
-    use_default = request.json.get('use_default', False)
-    if use_default:
-        media_files = get_media_files()
+    if request.json.get('use_default'):
+        media_files = get_media_files(app.config['UPLOAD_FOLDER'])
         tweets = [
-            {
-                'id': i + 1,
-                'message': msg,
-                'media_path': random.choice(media_files) if media_files else None,
-                'posted': False,
-                'scheduled_time': None,
-                'tweet_id': None,
-                'posted_by': [],
-                'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
-            } for i, msg in enumerate(HARDCODED_TWEETS)
+            {'id': i + 1, 'message': msg, 'media_path': random.choice(media_files) if media_files else None,
+             'posted': False, 'scheduled_time': None, 'tweet_id': None, 'posted_by': [],
+             'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}}
+            for i, msg in enumerate(HARDCODED_TWEETS)
         ]
-        save_tweets_to_file(tweets)
-        return jsonify({'success': True, 'message': 'Default tweets loaded successfully.'})
+        save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
+        return jsonify({'success': True, 'message': 'Default tweets loaded.'})
     tweets = []
-    save_tweets_to_file(tweets)
+    save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
     return jsonify({'success': True, 'message': 'Default tweets unchecked.'})
 
-# Main route
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
@@ -739,10 +266,10 @@ if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     if os.path.exists(app.config['TWEET_STORAGE']):
         with open(app.config['TWEET_STORAGE'], 'r') as f:
-            all_tweets = json.load(f)
-            scheduled_tweets = [t for t in all_tweets if t.get('scheduled_time') and not t.get('posted')]
-            tweets = all_tweets
+            tweets.extend(json.load(f))
+            scheduled_tweets.extend([t for t in tweets if t.get('scheduled_time') and not t.get('posted')])
 
-    if not credentials:
-        logger.info("Warning: No valid credentials loaded. Check credentials.xlsx file.")
+    if not load_credentials(app.config['CREDENTIALS_FILE'], app.config):
+        logger.info("Warning: No valid credentials loaded.")
+
     socketio.run(app, debug=True)
