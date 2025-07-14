@@ -14,7 +14,7 @@
             color: #333;
         }
         .container-fluid {
-            width: 80%;
+            width: 90%;
             max-width: 1400px;
             margin: 20px auto;
         }
@@ -325,7 +325,7 @@
             </div>
 
             <!-- Quarantined Credentials -->
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <div class="card h-100">
                     <div class="card-body">
                         <h5 class="card-title">Quarantined</h5>
@@ -335,7 +335,7 @@
             </div>
 
             <!-- Start/Stop Button -->
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card h-100">
                     <div class="card-body text-center d-flex flex-column justify-content-center">
                         <button id="start-system-btn" class="btn btn-outline-success btn-lg" disabled>Start System</button>
@@ -639,7 +639,6 @@
                     <td>${new Date(tweet.scheduled_time).toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })}</td>
                     <td class="countdown" data-countdown-to="${tweet.scheduled_time}">${formatCountdown(tweet.scheduled_time)}</td>
                 `;
-// more changes
                 const ellipsisBtn = row.querySelector('.ellipsis-btn');
                 if (ellipsisBtn) {
                     ellipsisBtn.addEventListener('click', () => showModal(tweet));
@@ -905,6 +904,7 @@
             console.log('Received log:', msg.data);
             consoleLog.innerHTML += msg.data + '<br>';
             consoleLog.scrollTop = consoleLog.scrollHeight;
+        });
         });
     </script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
