@@ -275,7 +275,8 @@
         <h1>Tweetbot</h1>
         <div id="alerts"></div>
 
-        <div class="row">
+        <div id="main-content" style="display: none;">
+            <div class="row">
             <!-- System Status -->
             <div class="col-md-3">
                 <div class="card h-100">
@@ -447,6 +448,7 @@
                     </form>
                 </div>
             </div>
+        </div>
         </div>
     </div>
     
@@ -846,7 +848,40 @@
         });
         // End
 
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', async function () {
+            showAlert('Loading credentials...', 'info');
+            const credentialsResponse = await fetch('/api/use_default_credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ use_default: true })
+            });
+            const credentialsData = await credentialsResponse.json();
+            showAlert(credentialsData.message, credentialsData.success ? 'success' : 'danger');
+
+            if (credentialsData.success) {
+                document.getElementById('use-default-credentials').checked = true;
+                await checkSystemStatus();
+                await fetchCredentialsStatus();
+
+                const tweetsResponse = await fetch('/api/use_default_tweets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ use_default: true })
+                });
+                const tweetsData = await tweetsResponse.json();
+                showAlert(tweetsData.message, tweetsData.success ? 'success' : 'danger');
+                if (tweetsData.success) {
+                    document.getElementById('use-default-tweets').checked = true;
+                    await fetchTweets();
+                    document.getElementById('tweets-section').style.display = 'block';
+                }
+
+                fetchSystemStatus();
+                updateCountdowns();
+                document.getElementById('main-content').style.display = 'block';
+            }
+
+
             document.getElementById('use-default-credentials').addEventListener('change', async (e) => {
                 const response = await fetch('/api/use_default_credentials', {
                     method: 'POST',
@@ -894,12 +929,6 @@
                 // This is a placeholder for the stop functionality
                 showAlert('System stop functionality not yet implemented.', 'warning');
             });
-
-            checkSystemStatus();
-            fetchTweets();
-            fetchCredentialsStatus();
-            fetchSystemStatus();
-            updateCountdowns();
 
             // Socket.IO for real-time logs
             const socket = io();
