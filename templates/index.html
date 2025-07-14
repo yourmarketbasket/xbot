@@ -283,9 +283,8 @@
                         <h5 class="card-title">System Status</h5>
                         <p><strong>State:</strong> <span id="system-state">Not Started</span></p>
                         <p><strong>Next Post:</strong> <span id="next-post-on">Loading...</span></p>
-                        <p><strong>Active:</strong> <span id="active-credential">Loading...</span></p>
+                        <p><strong>Active:</strong> <span id="active-credential">Loading...</span> <button id="switch-credential-btn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-sync-alt"></i></button></p>
                         <p><strong>Total:</strong> <span id="total-credentials">Loading...</span></p>
-                         <button id="switch-credential-btn" class="btn btn-outline-secondary btn-sm mt-2">Switch Credential</button>
                     </div>
                 </div>
             </div>
@@ -338,7 +337,8 @@
             <div class="col-md-2">
                 <div class="card h-100">
                     <div class="card-body text-center d-flex flex-column justify-content-center">
-                        <button id="start-system-btn" class="btn btn-outline-success btn-lg" disabled>Start System</button>
+                        <button id="start-system-btn" class="btn btn-outline-success btn-lg" disabled><i class="fas fa-power-off"></i></button>
+                        <button id="stop-system-btn" class="btn btn-outline-danger btn-lg" style="display: none;"><i class="fas fa-power-off"></i></button>
                     </div>
                 </div>
             </div>
@@ -424,7 +424,7 @@
                             <input type="file" name="media" id="media" class="form-control" accept=".png,.jpg,.jpeg,.mp4,.mov">
                         </div>
 
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Post Tweet Now</button>
+                        <button type="submit" id="post-now-btn" class="btn btn-primary" disabled><i class="fas fa-paper-plane"></i> Post Tweet Now</button>
                     </form>
                 </div>
 
@@ -441,7 +441,7 @@
                                 <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
                             </div>
                             <div class="col-md-3 mb-3">
-                                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-clock"></i> Schedule Tweets</button>
+                                <button type="submit" id="schedule-new-btn" class="btn btn-primary w-100" disabled><i class="fas fa-clock"></i> Schedule Tweets</button>
                             </div>
                         </div>
                     </form>
@@ -603,7 +603,7 @@
                     <td>${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}</td>
                     <td>${tweet.posted ? '<i class="fas fa-check-circle text-success"></i> Posted' : tweet.scheduled_time ? '<i class="fas fa-clock text-warning"></i> Scheduled' : '<i class="fas fa-times-circle text-danger"></i> Not Scheduled'}</td>
                     <td class="posted-by">${tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A'}</td>
-                    <td>${tweet.posted ? '' : `<button class="btn btn-success btn-sm" onclick="sendTweet(${tweet.id})"><i class="fas fa-paper-plane"></i> Send Now</button>`}</td>
+                    <td>${tweet.posted ? '' : `<button class="btn btn-success btn-sm send-now-btn" onclick="sendTweet(${tweet.id})" disabled><i class="fas fa-paper-plane"></i> Send Now</button>`}</td>
                 `;
 
                 const ellipsisBtn = row.querySelector('.ellipsis-btn');
@@ -803,12 +803,6 @@
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset() + 180); // Adjust for EAT (+3:00)
         document.getElementById('scheduled_time').min = now.toISOString().slice(0, 16);
 
-        // Initial fetch of data
-        fetchTweets();
-        fetchCredentialsStatus();
-        fetchSystemStatus();
-        updateCountdowns();
-
         // New functionality for file uploads and system start
         async function checkSystemStatus() {
             const response = await fetch('/api/status');
@@ -888,10 +882,24 @@
                 showAlert(data.message, data.success ? 'success' : 'danger');
                 if (data.success) {
                     document.getElementById('system-state').textContent = 'Started';
+                    document.getElementById('start-system-btn').style.display = 'none';
+                    document.getElementById('stop-system-btn').style.display = 'block';
+                    document.getElementById('post-now-btn').disabled = false;
+                    document.getElementById('schedule-new-btn').disabled = false;
+                    document.querySelectorAll('.send-now-btn').forEach(btn => btn.disabled = false);
                 }
             });
 
+            document.getElementById('stop-system-btn').addEventListener('click', () => {
+                // This is a placeholder for the stop functionality
+                showAlert('System stop functionality not yet implemented.', 'warning');
+            });
+
             checkSystemStatus();
+            fetchTweets();
+            fetchCredentialsStatus();
+            fetchSystemStatus();
+            updateCountdowns();
 
             // Socket.IO for real-time logs
             const socket = io();
