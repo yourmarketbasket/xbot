@@ -162,7 +162,7 @@ def _upload_media(client_v1, media_path, email):
         media_upload_func = client_v1.media_upload
         params = {'filename': media_path}
         if ext in {'.mp4', '.mov'}:
-            params.update({'chunked': True, 'media_category': 'tweet_video'})
+            params.update({'chunked': True, 'media_category': 'tweet_video', 'chunk_size': 2500})
 
         media = media_upload_func(**params)
 
