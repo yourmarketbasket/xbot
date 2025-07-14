@@ -1,0 +1,5 @@
+flask
+pandas
+tweepy
+openpyxl
+Flask-SocketIO
