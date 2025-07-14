@@ -12,7 +12,10 @@ from utility import (
     get_media_files, save_tweets_to_file, basename_filter,
     post_tweet, check_credential_health, schedule_and_post_tweets,
     allowed_file,
-    credentials, tweets, scheduled_tweets, next_post_time,
+    credentials as utility_credentials,
+    tweets as utility_tweets,
+    scheduled_tweets as utility_scheduled_tweets,
+    next_post_time,
     quarantined_credentials
 )
 
@@ -79,12 +82,12 @@ def credentials_status():
     creds = get_current_credentials()
     return jsonify({
         'active_credential': creds['Email'] if creds else 'None',
-        'total_credentials': len(credentials)
+        'total_credentials': len(utility_credentials)
     })
 
 @app.route('/api/start_system', methods=['POST'])
 def start_system():
-    if not credentials or not tweets:
+    if not utility_credentials or not utility_tweets:
         return jsonify({'success': False, 'message': 'Credentials and tweets must be loaded first.'}), 400
     threading.Thread(target=schedule_and_post_tweets, args=(app.config,), daemon=True).start()
     threading.Thread(target=check_credential_health, daemon=True).start()
@@ -94,12 +97,12 @@ def start_system():
 def get_tweets():
     TWEETS_PER_PAGE = 5
     page = request.args.get('page', 1, type=int)
-    total_pages = max(1, (len(tweets) + TWEETS_PER_PAGE - 1) // TWEETS_PER_PAGE)
+    total_pages = max(1, (len(utility_tweets) + TWEETS_PER_PAGE - 1) // TWEETS_PER_PAGE)
     page = max(1, min(page, total_pages))
     start = (page - 1) * TWEETS_PER_PAGE
     end = start + TWEETS_PER_PAGE
     return jsonify({
-        'tweets': tweets[start:end],
+        'tweets': utility_tweets[start:end],
         'page': page,
         'total_pages': total_pages,
         'tweets_per_page': TWEETS_PER_PAGE
@@ -119,14 +122,14 @@ def schedule_tweets_api():
     except ValueError:
         return jsonify({'success': False, 'message': 'Invalid scheduled time format.'}), 400
     
-    available = [t for t in tweets if not t['posted'] and not t.get('scheduled_time')]
+    available = [t for t in utility_tweets if not t['posted'] and not t.get('scheduled_time')]
     if len(available) < num_posts:
         return jsonify({'success': False, 'message': 'Not enough available tweets.'}), 400
     
     for tweet in random.sample(available, num_posts):
         tweet['scheduled_time'] = scheduled_dt.isoformat()
-        scheduled_tweets.append({**tweet})
-    save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
+        utility_scheduled_tweets.append({**tweet})
+    save_tweets_to_file(app.config['TWEET_STORAGE'], utility_tweets)
     return jsonify({'success': True, 'message': f'{num_posts} tweets scheduled successfully!'})
 
 @app.route('/api/post_tweet', methods=['POST'])
@@ -150,15 +153,15 @@ def post_tweet_now():
     success, posted_tweet_id = post_tweet(app.config, message=message, media_path=media_path, is_instant=True)
     if success:
         new_tweet = {
-            'id': max((t['id'] for t in tweets), default=0) + 1,
+            'id': max((t['id'] for t in utility_tweets), default=0) + 1,
             'message': message, 'media_path': media_path, 'posted': True,
             'scheduled_time': datetime.now(UTC).isoformat(),
             'tweet_id': posted_tweet_id,
             'posted_by': [get_current_credentials()['Email']],
             'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
         }
-        tweets.append(new_tweet)
-        save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
+        utility_tweets.append(new_tweet)
+        save_tweets_to_file(app.config['TWEET_STORAGE'], utility_tweets)
         return jsonify({'success': True, 'message': f'Tweet posted! View at https://x.com/user/status/{posted_tweet_id}'})
     return jsonify({'success': False, 'message': 'Failed to post tweet.'}), 500
 
@@ -168,8 +171,7 @@ def send_tweet(tweet_id):
     if status == 'rate_limited':
         return jsonify({'success': False, 'message': 'Rate limit hit.'}), 500
     if status:
-        global scheduled_tweets
-        scheduled_tweets = [t for t in scheduled_tweets if t['id'] != tweet_id]
+        utility_scheduled_tweets = [t for t in utility_scheduled_tweets if t['id'] != tweet_id]
         return jsonify({'success': True, 'message': f'Tweet {tweet_id} posted successfully!'})
     return jsonify({'success': False, 'message': 'Failed to post tweet.'}), 500
 
@@ -198,8 +200,11 @@ def upload_files():
             return jsonify({'success': False, 'message': 'No selected file for credentials.'}), 400
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_credentials.xlsx')
         f.save(filepath)
-        if not load_credentials(filepath, app.config):
+        loaded_creds = load_credentials(filepath, app.config)
+        if not loaded_creds:
             return jsonify({'success': False, 'message': 'Invalid or empty credentials file.'}), 400
+        utility_credentials.clear()
+        utility_credentials.extend(loaded_creds)
         return jsonify({'success': True, 'message': 'Credentials uploaded and verified.'})
 
     if 'tweets' in request.files:
@@ -210,14 +215,14 @@ def upload_files():
             data = json.loads(f.read().decode('utf-8'))
             if not isinstance(data, list) or not all(isinstance(t, str) for t in data):
                 return jsonify({'success': False, 'message': 'Tweets must be an array of strings.'}), 400
-            global tweets
-            tweets = [
+            utility_tweets.clear()
+            utility_tweets.extend([
                 {'id': i + 1, 'message': msg, 'media_path': None, 'posted': False,
                  'scheduled_time': None, 'tweet_id': None, 'posted_by': [],
                  'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}}
                 for i, msg in enumerate(data)
-            ]
-            save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
+            ])
+            save_tweets_to_file(app.config['TWEET_STORAGE'], utility_tweets)
             return jsonify({'success': True, 'message': 'Tweets uploaded and verified.'})
         except (json.JSONDecodeError, Exception) as e:
             return jsonify({'success': False, 'message': f'Error processing tweets file: {e}'}), 500
@@ -227,35 +232,37 @@ def upload_files():
 @app.route('/api/status', methods=['GET'])
 def get_status():
     return jsonify({
-        'credentials_loaded': len(credentials) > 0,
-        'tweets_loaded': len(tweets) > 0,
+        'credentials_loaded': len(utility_credentials) > 0,
+        'tweets_loaded': len(utility_tweets) > 0,
     })
 
 @app.route('/api/use_default_credentials', methods=['POST'])
 def use_default_credentials():
     if request.json.get('use_default'):
-        if load_credentials(app.config['CREDENTIALS_FILE'], app.config):
+        loaded_creds = load_credentials(app.config['CREDENTIALS_FILE'], app.config)
+        if loaded_creds:
+            utility_credentials.clear()
+            utility_credentials.extend(loaded_creds)
             return jsonify({'success': True, 'message': 'Default credentials loaded.'})
         return jsonify({'success': False, 'message': 'Failed to load default credentials.'})
-    global credentials
-    credentials = []
+    utility_credentials.clear()
     return jsonify({'success': True, 'message': 'Default credentials unchecked.'})
 
 @app.route('/api/use_default_tweets', methods=['POST'])
 def use_default_tweets():
-    global tweets
     if request.json.get('use_default'):
         media_files = get_media_files(app.config['UPLOAD_FOLDER'])
-        tweets = [
+        utility_tweets.clear()
+        utility_tweets.extend([
             {'id': i + 1, 'message': msg, 'media_path': random.choice(media_files) if media_files else None,
              'posted': False, 'scheduled_time': None, 'tweet_id': None, 'posted_by': [],
              'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}}
             for i, msg in enumerate(HARDCODED_TWEETS)
-        ]
-        save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
+        ])
+        save_tweets_to_file(app.config['TWEET_STORAGE'], utility_tweets)
         return jsonify({'success': True, 'message': 'Default tweets loaded.'})
-    tweets = []
-    save_tweets_to_file(app.config['TWEET_STORAGE'], tweets)
+    utility_tweets.clear()
+    save_tweets_to_file(app.config['TWEET_STORAGE'], utility_tweets)
     return jsonify({'success': True, 'message': 'Default tweets unchecked.'})
 
 @app.route('/', methods=['GET'])
@@ -266,8 +273,8 @@ if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     if os.path.exists(app.config['TWEET_STORAGE']):
         with open(app.config['TWEET_STORAGE'], 'r') as f:
-            tweets.extend(json.load(f))
-            scheduled_tweets.extend([t for t in tweets if t.get('scheduled_time') and not t.get('posted')])
+            utility_tweets.extend(json.load(f))
+            utility_scheduled_tweets.extend([t for t in utility_tweets if t.get('scheduled_time') and not t.get('posted')])
 
     if not load_credentials(app.config['CREDENTIALS_FILE'], app.config):
         logger.info("Warning: No valid credentials loaded.")

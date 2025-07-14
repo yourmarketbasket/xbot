@@ -30,29 +30,38 @@ scheduled_tweets = []
 
 def load_credentials(filepath, app_config):
     global credentials, tweet_counts
+    logger.info(f"Attempting to load credentials from: {filepath}")
     if not os.path.exists(filepath):
-        logger.info(f"Error: Credentials file '{filepath}' not found.")
+        logger.error(f"Credentials file not found at: {filepath}")
         return []
 
     try:
+        logger.info("Reading Excel file...")
         df = pd.read_excel(filepath, sheet_name='Sheet1')
+        logger.info("Excel file read successfully.")
+
         required_columns = ['Email', 'API KEY', 'API KEY SECRET', 'ACCESS TOKEN', 'ACCESS TOKEN SECRET']
-        if not all(col in df.columns for col in required_columns):
-            missing = [col for col in required_columns if col not in df.columns]
-            logger.info(f"Error: Missing required columns: {', '.join(missing)}")
+        missing_cols = [col for col in required_columns if col not in df.columns]
+        if missing_cols:
+            logger.error(f"Missing required columns in credentials file: {', '.join(missing_cols)}")
             return []
 
+        logger.info("Dropping rows with missing values...")
         df.dropna(subset=required_columns, inplace=True)
+
         if df.empty:
-            logger.info("No valid credentials found after cleaning.")
+            logger.warning("No valid credentials found in the Excel file after cleaning.")
             return []
 
         credentials = df[required_columns].to_dict('records')
         tweet_counts = {cred['Email']: {'count': 0, 'date': datetime.now(UTC).date()} for cred in credentials}
-        logger.info(f"Successfully loaded {len(credentials)} credentials.")
+
+        logger.info(f"Successfully loaded and validated {len(credentials)} credentials.")
+        logger.debug(f"Loaded credentials: {credentials}")
+
         return credentials
     except Exception as e:
-        logger.info(f"An unexpected error occurred while loading credentials: {e}")
+        logger.error(f"An unexpected error occurred while loading credentials: {e}", exc_info=True)
         return []
 
 def get_current_credentials(index=None):
