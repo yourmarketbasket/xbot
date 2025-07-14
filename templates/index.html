@@ -903,17 +903,17 @@
 
             // Socket.IO for real-time logs
             const socket = io();
-        const consoleLog = document.getElementById('console-log');
+            const consoleLog = document.getElementById('console-log');
 
-        socket.on('connect', () => {
-            console.log('Connected to Socket.IO server');
-        });
+            socket.on('connect', () => {
+                console.log('Connected to Socket.IO server');
+            });
 
-        socket.on('log_message', (msg) => {
-            console.log('Received log:', msg.data);
-            consoleLog.innerHTML += msg.data + '<br>';
-            consoleLog.scrollTop = consoleLog.scrollHeight;
-        });
+            socket.on('log_message', (msg) => {
+                console.log('Received log:', msg.data);
+                consoleLog.innerHTML += msg.data + '<br>';
+                consoleLog.scrollTop = consoleLog.scrollHeight;
+            });
         });
     </script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
