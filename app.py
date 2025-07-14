@@ -696,29 +696,35 @@ def get_status():
 @app.route('/api/use_default_credentials', methods=['POST'])
 def use_default_credentials():
     global credentials
-    credentials = load_credentials()
-    if credentials:
-        return jsonify({'success': True, 'message': 'Default credentials loaded successfully.'})
-    return jsonify({'success': False, 'message': 'Failed to load default credentials.'})
+    use_default = request.json.get('use_default', False)
+    if use_default:
+        credentials = load_credentials()
+        if credentials:
+            return jsonify({'success': True, 'message': 'Default credentials loaded successfully.'})
+        return jsonify({'success': False, 'message': 'Failed to load default credentials.'})
+    return jsonify({'success': True, 'message': 'Default credentials unchecked.'})
 
 @app.route('/api/use_default_tweets', methods=['POST'])
 def use_default_tweets():
     global tweets
-    media_files = get_media_files()
-    tweets = [
-        {
-            'id': i + 1,
-            'message': msg,
-            'media_path': random.choice(media_files) if media_files else None,
-            'posted': False,
-            'scheduled_time': None,
-            'tweet_id': None,
-            'posted_by': [],
-            'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
-        } for i, msg in enumerate(HARDCODED_TWEETS)
-    ]
-    save_tweets_to_file(tweets)
-    return jsonify({'success': True, 'message': 'Default tweets loaded successfully.'})
+    use_default = request.json.get('use_default', False)
+    if use_default:
+        media_files = get_media_files()
+        tweets = [
+            {
+                'id': i + 1,
+                'message': msg,
+                'media_path': random.choice(media_files) if media_files else None,
+                'posted': False,
+                'scheduled_time': None,
+                'tweet_id': None,
+                'posted_by': [],
+                'metrics': {'likes': 0, 'retweets': 0, 'replies': 0}
+            } for i, msg in enumerate(HARDCODED_TWEETS)
+        ]
+        save_tweets_to_file(tweets)
+        return jsonify({'success': True, 'message': 'Default tweets loaded successfully.'})
+    return jsonify({'success': True, 'message': 'Default tweets unchecked.'})
 
 # Main route
 @app.route('/', methods=['GET'])

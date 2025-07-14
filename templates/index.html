@@ -294,17 +294,31 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <h5 class="card-title">Setup</h5>
-                        <form id="upload-credentials-form" class="mb-2">
-                            <input type="file" name="credentials" class="form-control form-control-sm" accept=".xlsx">
-                            <button type="submit" class="btn btn-outline-primary btn-sm mt-1">Upload Credentials</button>
+                        <form id="upload-credentials-form">
+                            <div class="input-group mb-2">
+                                <input type="file" name="credentials" class="form-control form-control-sm" accept=".xlsx">
+                                <button type="submit" class="btn btn-outline-primary btn-sm">Upload</button>
+                            </div>
                         </form>
-                        <button id="use-default-credentials" class="btn btn-outline-secondary btn-sm">Use Default</button>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="use-default-credentials">
+                            <label class="form-check-label" for="use-default-credentials">
+                                Use Default Credentials
+                            </label>
+                        </div>
                         <hr>
-                        <form id="upload-tweets-form" class="mb-2">
-                            <input type="file" name="tweets" class="form-control form-control-sm" accept=".json">
-                            <button type="submit" class="btn btn-outline-primary btn-sm mt-1">Upload Tweets</button>
+                        <form id="upload-tweets-form">
+                            <div class="input-group mb-2">
+                                <input type="file" name="tweets" class="form-control form-control-sm" accept=".json">
+                                <button type="submit" class="btn btn-outline-primary btn-sm">Upload</button>
+                            </div>
                         </form>
-                        <button id="use-default-tweets" class="btn btn-outline-secondary btn-sm">Use Default</button>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="use-default-tweets">
+                            <label class="form-check-label" for="use-default-tweets">
+                                Use Default Tweets
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -329,6 +343,16 @@
             </div>
         </div>
 
+        <!-- Console Log -->
+        <div class="card mt-4">
+            <div class="card-header">
+                Console Log
+            </div>
+            <div class="card-body">
+                <pre id="console-log" style="height: 200px; overflow-y: scroll; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 10px;"></pre>
+            </div>
+        </div>
+
         <div id="tweets-section" style="display: none;">
             <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
                 <li class="nav-item" role="presentation">
@@ -344,7 +368,6 @@
                     <button class="nav-link" id="schedule-new-tab" data-bs-toggle="tab" data-bs-target="#schedule-new" type="button" role="tab" aria-controls="schedule-new" aria-selected="false">Schedule New Tweets</button>
                 </li>
             </ul>
-
             <div class="tab-content" id="tweetTabContent">
             <!-- All Tweets Tab -->
             <div class="tab-pane fade show active" id="all-tweets" role="tabpanel" aria-labelledby="all-tweets-tab">
@@ -422,17 +445,8 @@
                 </form>
             </div>
         </div>
-
-        <!-- Console Log -->
-        <div class="card mt-4">
-            <div class="card-header">
-                Console Log
-            </div>
-            <div class="card-body">
-                <pre id="console-log" style="height: 200px; overflow-y: scroll; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 10px;"></pre>
-            </div>
-        </div>
     </div>
+</div>
     
     <script>
         let currentPage = 1;
@@ -836,8 +850,12 @@
             }
         });
 
-        document.getElementById('use-default-credentials').addEventListener('click', async () => {
-            const response = await fetch('/api/use_default_credentials', { method: 'POST' });
+        document.getElementById('use-default-credentials').addEventListener('change', async (e) => {
+            const response = await fetch('/api/use_default_credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ use_default: e.target.checked })
+            });
             const data = await response.json();
             showAlert(data.message, data.success ? 'success' : 'danger');
             if (data.success) {
@@ -846,8 +864,12 @@
             }
         });
 
-        document.getElementById('use-default-tweets').addEventListener('click', async () => {
-            const response = await fetch('/api/use_default_tweets', { method: 'POST' });
+        document.getElementById('use-default-tweets').addEventListener('change', async (e) => {
+            const response = await fetch('/api/use_default_tweets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ use_default: e.target.checked })
+            });
             const data = await response.json();
             showAlert(data.message, data.success ? 'success' : 'danger');
             if (data.success) {
