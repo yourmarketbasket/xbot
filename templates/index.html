@@ -355,98 +355,99 @@
 
         <div id="tweets-section" style="display: none;">
             <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="all-tweets-tab" data-bs-toggle="tab" data-bs-target="#all-tweets" type="button" role="tab" aria-controls="all-tweets" aria-selected="true">All Tweets</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="scheduled-tweets-tab" data-bs-toggle="tab" data-bs-target="#scheduled-tweets" type="button" role="tab" aria-controls="scheduled-tweets" aria-selected="false">Scheduled Tweets</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="post-now-tab" data-bs-toggle="tab" data-bs-target="#post-now" type="button" role="tab" aria-controls="post-now" aria-selected="false">Post Tweet Now</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="schedule-new-tab" data-bs-toggle="tab" data-bs-target="#schedule-new" type="button" role="tab" aria-controls="schedule-new" aria-selected="false">Schedule New Tweets</button>
-                </li>
-            </ul>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="all-tweets-tab" data-bs-toggle="tab" data-bs-target="#all-tweets" type="button" role="tab" aria-controls="all-tweets" aria-selected="true">All Tweets</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="scheduled-tweets-tab" data-bs-toggle="tab" data-bs-target="#scheduled-tweets" type="button" role="tab" aria-controls="scheduled-tweets" aria-selected="false">Scheduled Tweets</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="post-now-tab" data-bs-toggle="tab" data-bs-target="#post-now" type="button" role="tab" aria-controls="post-now" aria-selected="false">Post Tweet Now</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="schedule-new-tab" data-bs-toggle="tab" data-bs-target="#schedule-new" type="button" role="tab" aria-controls="schedule-new" aria-selected="false">Schedule New Tweets</button>
+            </li>
+        </ul>
+
             <div class="tab-content" id="tweetTabContent">
-            <!-- All Tweets Tab -->
-            <div class="tab-pane fade show active" id="all-tweets" role="tabpanel" aria-labelledby="all-tweets-tab">
-                <h2>All Tweets</h2>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover table-sm">
-                        <thead>
-                            <tr>
-                                <th scope="col">Message</th>
-                                <th scope="col">Media</th>
-                                <th scope="col">Status</th>
-                                <th scope="col">Posted By</th>
-                                <th scope="col">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="all-tweets-body"></tbody>
-                    </table>
+                <!-- All Tweets Tab -->
+                <div class="tab-pane fade show active" id="all-tweets" role="tabpanel" aria-labelledby="all-tweets-tab">
+                    <h2>All Tweets</h2>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover table-sm">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Message</th>
+                                    <th scope="col">Media</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Posted By</th>
+                                    <th scope="col">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="all-tweets-body"></tbody>
+                        </table>
+                    </div>
+                    <nav aria-label="Tweet pagination">
+                        <ul class="pagination" id="all-tweets-pagination"></ul>
+                    </nav>
                 </div>
-                <nav aria-label="Tweet pagination">
-                    <ul class="pagination" id="all-tweets-pagination"></ul>
-                </nav>
-            </div>
 
-            <!-- Scheduled Tweets Tab -->
-            <div class="tab-pane fade" id="scheduled-tweets" role="tabpanel" aria-labelledby="scheduled-tweets-tab">
-                <h2>Scheduled Tweets</h2>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover table-sm">
-                        <thead>
-                            <tr>
-                                <th scope="col">Message</th>
-                                <th scope="col">Media</th>
-                                <th scope="col">Scheduled Time</th>
-                                <th scope="col">Countdown</th>
-                            </tr>
-                        </thead>
-                        <tbody id="scheduled-tweets-body"></tbody>
-                    </table>
+                <!-- Scheduled Tweets Tab -->
+                <div class="tab-pane fade" id="scheduled-tweets" role="tabpanel" aria-labelledby="scheduled-tweets-tab">
+                    <h2>Scheduled Tweets</h2>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover table-sm">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Message</th>
+                                    <th scope="col">Media</th>
+                                    <th scope="col">Scheduled Time</th>
+                                    <th scope="col">Countdown</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduled-tweets-body"></tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Post Tweet Now Tab -->
-            <div class="tab-pane fade" id="post-now" role="tabpanel" aria-labelledby="post-now-tab">
-                <form id="post-now-form" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label for="message" class="form-label">Tweet Message</label>
-                        <textarea name="message" id="message" class="form-control" rows="3" maxlength="280" placeholder="Enter your tweet (max 280 characters)" required></textarea>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="media" class="form-label">Upload Media (optional, PNG/JPG/MP4/MOV, max 5MB for images, 512MB for videos)</label>
-                        <input type="file" name="media" id="media" class="form-control" accept=".png,.jpg,.jpeg,.mp4,.mov">
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Post Tweet Now</button>
-                </form>
-            </div>
+                <!-- Post Tweet Now Tab -->
+                <div class="tab-pane fade" id="post-now" role="tabpanel" aria-labelledby="post-now-tab">
+                    <form id="post-now-form" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Tweet Message</label>
+                            <textarea name="message" id="message" class="form-control" rows="3" maxlength="280" placeholder="Enter your tweet (max 280 characters)" required></textarea>
+                        </div>
 
-            <!-- Schedule New Tweets Tab -->
-            <div class="tab-pane fade" id="schedule-new" role="tabpanel" aria-labelledby="schedule-new-tab">
-                <form id="schedule-form">
-                    <div class="row align-items-end">
-                        <div class="col-md-4 mb-3">
-                            <label for="num_posts" class="form-label">Number of Posts (1-20)</label>
-                            <input type="number" name="num_posts" id="num_posts" class="form-control" min="1" max="20" placeholder="Enter number of posts" required>
+                        <div class="mb-3">
+                            <label for="media" class="form-label">Upload Media (optional, PNG/JPG/MP4/MOV, max 5MB for images, 512MB for videos)</label>
+                            <input type="file" name="media" id="media" class="form-control" accept=".png,.jpg,.jpeg,.mp4,.mov">
                         </div>
-                        <div class="col-md-5 mb-3">
-                            <label for="scheduled_time" class="form-label">Schedule Posting Time</label>
-                            <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
+
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Post Tweet Now</button>
+                    </form>
+                </div>
+
+                <!-- Schedule New Tweets Tab -->
+                <div class="tab-pane fade" id="schedule-new" role="tabpanel" aria-labelledby="schedule-new-tab">
+                    <form id="schedule-form">
+                        <div class="row align-items-end">
+                            <div class="col-md-4 mb-3">
+                                <label for="num_posts" class="form-label">Number of Posts (1-20)</label>
+                                <input type="number" name="num_posts" id="num_posts" class="form-control" min="1" max="20" placeholder="Enter number of posts" required>
+                            </div>
+                            <div class="col-md-5 mb-3">
+                                <label for="scheduled_time" class="form-label">Schedule Posting Time</label>
+                                <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-clock"></i> Schedule Tweets</button>
+                            </div>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <button type="submit" class="btn btn-primary w-100"><i class="fas fa-clock"></i> Schedule Tweets</button>
-                        </div>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
     
     <script>
         let currentPage = 1;
@@ -875,6 +876,7 @@
             if (data.success) {
                 checkSystemStatus();
                 fetchTweets();
+                document.getElementById('tweets-section').style.display = 'block';
             }
         });
 
@@ -884,7 +886,6 @@
             showAlert(data.message, data.success ? 'success' : 'danger');
             if (data.success) {
                 document.getElementById('system-state').textContent = 'Started';
-                document.getElementById('tweets-section').style.display = 'block';
             }
         });
 

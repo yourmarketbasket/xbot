@@ -702,6 +702,7 @@ def use_default_credentials():
         if credentials:
             return jsonify({'success': True, 'message': 'Default credentials loaded successfully.'})
         return jsonify({'success': False, 'message': 'Failed to load default credentials.'})
+    credentials = []
     return jsonify({'success': True, 'message': 'Default credentials unchecked.'})
 
 @app.route('/api/use_default_tweets', methods=['POST'])
@@ -724,6 +725,8 @@ def use_default_tweets():
         ]
         save_tweets_to_file(tweets)
         return jsonify({'success': True, 'message': 'Default tweets loaded successfully.'})
+    tweets = []
+    save_tweets_to_file(tweets)
     return jsonify({'success': True, 'message': 'Default tweets unchecked.'})
 
 # Main route
