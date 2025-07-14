@@ -704,6 +704,7 @@ def use_default_credentials():
         return jsonify({'success': False, 'message': 'Failed to load default credentials.'})
     credentials = []
     return jsonify({'success': True, 'message': 'Default credentials unchecked.'})
+# New endpoint to use default tweets
 
 @app.route('/api/use_default_tweets', methods=['POST'])
 def use_default_tweets():
