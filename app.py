@@ -647,7 +647,7 @@ def upload_files():
         except Exception as e:
             return jsonify({'success': False, 'message': f'Error processing credentials file: {str(e)}'}), 500
 
-    # Handle tweet file upload
+   
     if 'tweets' in request.files:
         tweet_file = request.files['tweets']
         if tweet_file.filename == '':
