@@ -195,23 +195,21 @@
             color: #dc3545;
             font-weight: 500;
         }
-        .status-card {
-            margin-bottom: 25px;
-            padding: 20px;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            background-color: #fff;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        .card {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
         }
-        .status-card h5 {
-            margin-bottom: 15px;
-            font-weight: 600;
-            color: #343a40;
+        .card:hover {
+            transform: translateY(-5px);
         }
-        .status-card p {
-            margin: 5px 0;
-            font-size: 0.9rem;
-            color: #495057;
+        .btn-outline-primary {
+            color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .btn-outline-primary:hover {
+            color: #fff;
+            background-color: #0d6efd;
+            border-color: #0d6efd;
         }
         h1 {
             font-size: 1.8rem;
@@ -277,67 +275,77 @@
         <h1>Tweetbot</h1>
         <div id="alerts"></div>
 
-        <!-- Status Card for Credential and Scheduling Info -->
-        <div class="status-card">
-            <h5>System Status</h5>
-            <p><strong>System State:</strong> <span id="system-state">Not Started</span></p>
-            <p><strong>Automatic Scheduling:</strong> Up to 17 random tweets posted daily per credential.</p>
-            <p><strong>Next Post On:</strong> <span id="next-post-on">Loading...</span> (Nairobi Time)</p>
-            <p>
-                <strong>Active Credential:</strong> <span id="active-credential">Loading...</span>
-                <button id="switch-credential-btn" class="btn btn-secondary btn-sm switch-credential-btn">Switch Credential</button>
-            </p>
-            <p><strong>Total Credentials:</strong> <span id="total-credentials">Loading...</span></p>
-            <p><strong>Quarantined Credentials:</strong></p>
-            <ul id="quarantined-list" class="list-group"></ul>
-        </div>
-
-        <!-- File Upload and System Start -->
-        <div class="status-card">
-            <h5>Setup</h5>
-            <div class="row">
-                <div class="col-md-6">
-                    <h6>Upload Credentials</h6>
-                    <form id="upload-credentials-form" class="mb-3">
-                        <input type="file" name="credentials" class="form-control" accept=".xlsx" required>
-                        <button type="submit" class="btn btn-primary mt-2">Upload</button>
-                    </form>
-                    <button id="use-default-credentials" class="btn btn-secondary">Use Default Credentials</button>
-                </div>
-                <div class="col-md-6">
-                    <h6>Upload Tweets</h6>
-                    <form id="upload-tweets-form" class="mb-3">
-                        <input type="file" name="tweets" class="form-control" accept=".json" required>
-                        <button type="submit" class="btn btn-primary mt-2">Upload</button>
-                    </form>
-                    <button id="use-default-tweets" class="btn btn-secondary">Use Default Tweets</button>
+        <div class="row">
+            <!-- System Status -->
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">System Status</h5>
+                        <p><strong>State:</strong> <span id="system-state">Not Started</span></p>
+                        <p><strong>Next Post:</strong> <span id="next-post-on">Loading...</span></p>
+                        <p><strong>Active:</strong> <span id="active-credential">Loading...</span></p>
+                        <p><strong>Total:</strong> <span id="total-credentials">Loading...</span></p>
+                    </div>
                 </div>
             </div>
-            <button id="start-system-btn" class="btn btn-success mt-3" disabled>Start System</button>
+
+            <!-- Setup -->
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Setup</h5>
+                        <form id="upload-credentials-form" class="mb-2">
+                            <input type="file" name="credentials" class="form-control form-control-sm" accept=".xlsx">
+                            <button type="submit" class="btn btn-outline-primary btn-sm mt-1">Upload Credentials</button>
+                        </form>
+                        <button id="use-default-credentials" class="btn btn-outline-secondary btn-sm">Use Default</button>
+                        <hr>
+                        <form id="upload-tweets-form" class="mb-2">
+                            <input type="file" name="tweets" class="form-control form-control-sm" accept=".json">
+                            <button type="submit" class="btn btn-outline-primary btn-sm mt-1">Upload Tweets</button>
+                        </form>
+                        <button id="use-default-tweets" class="btn btn-outline-secondary btn-sm">Use Default</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quarantined Credentials -->
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Quarantined</h5>
+                        <ul id="quarantined-list" class="list-group list-group-flush"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Start/Stop Button -->
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center d-flex flex-column justify-content-center">
+                        <button id="start-system-btn" class="btn btn-outline-success btn-lg" disabled>Start System</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Console Log -->
-        <div class="status-card">
-            <h5>Console Log</h5>
-            <pre id="console-log" style="height: 200px; overflow-y: scroll; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 10px;"></pre>
-        </div>
+        <div id="tweets-section" style="display: none;">
+            <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="all-tweets-tab" data-bs-toggle="tab" data-bs-target="#all-tweets" type="button" role="tab" aria-controls="all-tweets" aria-selected="true">All Tweets</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="scheduled-tweets-tab" data-bs-toggle="tab" data-bs-target="#scheduled-tweets" type="button" role="tab" aria-controls="scheduled-tweets" aria-selected="false">Scheduled Tweets</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="post-now-tab" data-bs-toggle="tab" data-bs-target="#post-now" type="button" role="tab" aria-controls="post-now" aria-selected="false">Post Tweet Now</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="schedule-new-tab" data-bs-toggle="tab" data-bs-target="#schedule-new" type="button" role="tab" aria-controls="schedule-new" aria-selected="false">Schedule New Tweets</button>
+                </li>
+            </ul>
 
-        <ul class="nav nav-tabs mb-4" id="tweetTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="all-tweets-tab" data-bs-toggle="tab" data-bs-target="#all-tweets" type="button" role="tab" aria-controls="all-tweets" aria-selected="true">All Tweets</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="scheduled-tweets-tab" data-bs-toggle="tab" data-bs-target="#scheduled-tweets" type="button" role="tab" aria-controls="scheduled-tweets" aria-selected="false">Scheduled Tweets</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="post-now-tab" data-bs-toggle="tab" data-bs-target="#post-now" type="button" role="tab" aria-controls="post-now" aria-selected="false">Post Tweet Now</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="schedule-new-tab" data-bs-toggle="tab" data-bs-target="#schedule-new" type="button" role="tab" aria-controls="schedule-new" aria-selected="false">Schedule New Tweets</button>
-            </li>
-        </ul>
-
-        <div class="tab-content" id="tweetTabContent">
+            <div class="tab-content" id="tweetTabContent">
             <!-- All Tweets Tab -->
             <div class="tab-pane fade show active" id="all-tweets" role="tabpanel" aria-labelledby="all-tweets-tab">
                 <h2>All Tweets</h2>
@@ -412,6 +420,16 @@
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Console Log -->
+        <div class="card mt-4">
+            <div class="card-header">
+                Console Log
+            </div>
+            <div class="card-body">
+                <pre id="console-log" style="height: 200px; overflow-y: scroll; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 10px;"></pre>
             </div>
         </div>
     </div>
@@ -844,6 +862,7 @@
             showAlert(data.message, data.success ? 'success' : 'danger');
             if (data.success) {
                 document.getElementById('system-state').textContent = 'Started';
+                document.getElementById('tweets-section').style.display = 'block';
             }
         });
 
