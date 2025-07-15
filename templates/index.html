@@ -375,6 +375,16 @@
                 <!-- All Tweets Tab -->
                 <div class="tab-pane fade show active" id="all-tweets" role="tabpanel" aria-labelledby="all-tweets-tab">
                     <h2>All Tweets</h2>
+                    <div class="mb-3">
+                        <button id="send-all-btn" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send All Tweets Now
+                        </button>
+                    </div>
+                    <div id="send-all-progress-container" class="mt-3" style="display: none;">
+                        <div class="progress">
+                             <div id="send-all-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover table-sm">
                             <thead>
@@ -457,6 +467,7 @@
         let countdownInterval;
         let lastFetchTime = 0;
         const FETCH_INTERVAL = 60000; // 1 minute
+        let isSystemStarted = false;
 
         function showAlert(message, type) {
             const alerts = document.getElementById('alerts');
@@ -605,7 +616,9 @@
                     <td>${tweet.media_path ? `<a href="/media/${basename(tweet.media_path)}" target="_blank" class="media-link">${basename(tweet.media_path)}</a>` : 'None'}</td>
                     <td>${tweet.posted ? '<i class="fas fa-check-circle text-success"></i> Posted' : tweet.scheduled_time ? '<i class="fas fa-clock text-warning"></i> Scheduled' : '<i class="fas fa-times-circle text-danger"></i> Not Scheduled'}</td>
                     <td class="posted-by">${tweet.posted_by && tweet.posted_by.length ? tweet.posted_by.join(', ') : 'N/A'}</td>
-                    <td>${tweet.posted ? '' : `<button class="btn btn-success btn-sm send-now-btn" onclick="sendTweet(${tweet.id})" disabled><i class="fas fa-paper-plane"></i> Send Now</button>`}</td>
+                    <td>
+                        ${tweet.posted ? '' : `<button class="btn btn-success btn-sm send-now-btn" ${isSystemStarted ? '' : 'disabled'} onclick="sendTweet(${tweet.id})"><i class="fas fa-paper-plane"></i> Send Now</button>`}
+                    </td>
                 `;
 
                 const ellipsisBtn = row.querySelector('.ellipsis-btn');
@@ -921,13 +934,41 @@
                     document.getElementById('stop-system-btn').style.display = 'block';
                     document.getElementById('post-now-btn').disabled = false;
                     document.getElementById('schedule-new-btn').disabled = false;
-                    document.querySelectorAll('.send-now-btn').forEach(btn => btn.disabled = false);
+                    isSystemStarted = true;
+                    // Re-render tweets to update button states across all pages
+                    fetchTweets(currentPage);
                 }
             });
-
+    
             document.getElementById('stop-system-btn').addEventListener('click', () => {
                 // This is a placeholder for the stop functionality
                 showAlert('System stop functionality not yet implemented.', 'warning');
+            });
+    
+            document.getElementById('send-all-btn').addEventListener('click', async () => {
+                const btn = document.getElementById('send-all-btn');
+                const progressContainer = document.getElementById('send-all-progress-container');
+                const progressBar = document.getElementById('send-all-progress-bar');
+
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending All Tweets...';
+                progressContainer.style.display = 'block';
+                progressBar.style.width = '0%';
+                progressBar.textContent = '0%';
+                
+                try {
+                    const response = await fetch('/api/send_all', { method: 'POST' });
+                    const data = await response.json();
+                    showAlert(data.message, data.success ? 'success' : 'danger');
+                    
+                    // Don't re-enable the button here; let the socket event handle it.
+                } catch (error) {
+                    console.error('Error sending all tweets:', error);
+                    showAlert('Failed to send all tweets due to network error.', 'danger');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send All Tweets Now';
+                    progressContainer.style.display = 'none';
+                }
             });
 
             // Socket.IO for real-time logs
@@ -942,6 +983,27 @@
                 console.log('Received log:', msg.data);
                 consoleLog.innerHTML += msg.data + '<br>';
                 consoleLog.scrollTop = consoleLog.scrollHeight;
+            });
+
+            socket.on('send_all_progress', (data) => {
+                const progressBar = document.getElementById('send-all-progress-bar');
+                const progressContainer = document.getElementById('send-all-progress-container');
+                const btn = document.getElementById('send-all-btn');
+
+                if (data.done) {
+                    progressBar.style.width = '100%';
+                    progressBar.textContent = 'Completed!';
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send All Tweets Now';
+                        fetchTweets(currentPage); // Refresh tweets list
+                    }, 2000);
+                } else {
+                    const percentage = data.total > 0 ? (data.sent / data.total) * 100 : 0;
+                    progressBar.style.width = percentage + '%';
+                    progressBar.textContent = `${Math.round(percentage)}% (${data.sent}/${data.total})`;
+                }
             });
         });
     </script>

@@ -165,8 +165,66 @@ def post_tweet_now():
         return jsonify({'success': True, 'message': f'Tweet posted! View at https://x.com/user/status/{posted_tweet_id}'})
     return jsonify({'success': False, 'message': 'Failed to post tweet.'}), 500
 
+def send_all_in_background(app_config):
+    with app.app_context():
+        logger.info("Starting to send all tweets with new rotation strategy.")
+        unsent_tweets = [t for t in utility_tweets if not t['posted'] and not t.get('scheduled_time')]
+        
+        if not unsent_tweets:
+            logger.info("No unsent tweets available to send.")
+            socketio.emit('send_all_progress', {'sent': 0, 'total': 0, 'done': True})
+            return
+
+        success_count = 0
+        total_to_send = len(unsent_tweets)
+        logger.info(f"Found {total_to_send} unsent tweets to send.")
+        socketio.emit('send_all_progress', {'sent': 0, 'total': total_to_send, 'done': False})
+
+        for i, tweet in enumerate(unsent_tweets):
+            attempts = 0
+            while attempts < len(utility_credentials):
+                active_cred = get_current_credentials()
+                if not active_cred or active_cred['Email'] in quarantined_credentials:
+                    switch_credentials()
+                    attempts += 1
+                    continue
+
+                status, reason = post_tweet(app.config, tweet_id=tweet['id'], no_cooldown=True)
+                
+                if status is True:
+                    success_count += 1
+                    logger.info(f"Successfully sent tweet {tweet['id']} with {active_cred['Email']}.")
+                    switch_credentials() # Switch for the next tweet
+                    break # Move to next tweet
+                else:
+                    logger.warning(f"Failed to send tweet {tweet['id']} with {active_cred['Email']} due to: {reason}. Trying next credential.")
+                    switch_credentials()
+                    attempts += 1
+            
+            if attempts >= len(utility_credentials):
+                 logger.error(f"Failed to send tweet {tweet['id']} with any credential. All are failing or quarantined. Skipping tweet.")
+            
+            socketio.emit('send_all_progress', {'sent': i + 1, 'total': total_to_send, 'done': False})
+
+        logger.info(f'Finished sending all tweets. Sent {success_count} of {total_to_send} successfully!')
+        socketio.emit('send_all_progress', {'sent': total_to_send, 'total': total_to_send, 'done': True})
+
+@app.route('/api/send_all', methods=['POST'])
+def send_all_tweets():
+    unsent_tweets = [t for t in utility_tweets if not t['posted'] and not t.get('scheduled_time')]
+    if not unsent_tweets:
+        return jsonify({'success': False, 'message': 'No unsent tweets available.'}), 400
+        
+    threading.Thread(target=send_all_in_background, args=(app.config,), daemon=True).start()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Process to send all tweets has been started in the background. See console for updates.'
+    })
+
 @app.route('/api/send/<int:tweet_id>', methods=['POST'])
 def send_tweet(tweet_id):
+    global utility_scheduled_tweets  # Add global declaration
     status, _ = post_tweet(app.config, tweet_id=tweet_id)
     if status == 'rate_limited':
         return jsonify({'success': False, 'message': 'Rate limit hit.'}), 500

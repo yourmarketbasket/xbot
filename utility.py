@@ -21,7 +21,7 @@ COOLDOWN_TIME = 30
 # Global state
 credentials = []
 current_credential_index = 0
-credential_lock = threading.Lock()
+credential_lock = threading.RLock()
 quarantined_credentials = {}
 tweet_counts = {}
 next_post_time = None
@@ -179,76 +179,77 @@ def _upload_media(client_v1, media_path, email):
         logger.info(f"Error uploading media with {email}: {e}")
         return None
 
-def post_tweet(app_config, tweet_id=None, message=None, media_path=None, is_instant=False):
-    global current_credential_index
+def post_tweet(app_config, tweet_id=None, message=None, media_path=None, is_instant=False, no_cooldown=False):
+    """
+    Attempts to post a tweet using ONLY the current credential.
+    It does NOT loop or switch credentials.
+    The calling function is responsible for credential management.
+    """
     if not credentials:
         logger.info("Warning: No credentials available.")
-        return False, None
+        return False, "no_credentials"
 
     tweet = next((t for t in tweets if t['id'] == tweet_id), None) if tweet_id else None
     if not is_instant and (not tweet or tweet['posted']):
         logger.info(f"Tweet {tweet_id} not found or already posted.")
-        return False, None
+        return False, "not_found_or_posted"
+
+    creds = get_current_credentials()
+    if not creds:
+        return False, "no_credentials"
+        
+    # Check if current credential is legit before attempting
+    if creds['Email'] in quarantined_credentials:
+        return False, "quarantined"
+        
+    today = datetime.now(UTC).date()
+    if creds['Email'] not in tweet_counts or tweet_counts[creds['Email']]['date'] < today:
+        tweet_counts[creds['Email']] = {'count': 0, 'date': today}
+    if tweet_counts[creds['Email']]['count'] >= 17:
+        logger.info(f"{creds['Email']} has reached daily limit of 17 tweets.")
+        quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=24)
+        return False, "daily_limit"
 
     tweet_text = _prepare_tweet_text(message if is_instant else tweet['message'])
     media_path = media_path if is_instant else tweet.get('media_path')
 
-    for _ in range(len(credentials)):
-        creds = get_current_credentials()
-        if not creds:
-            switch_credentials()
-            continue
+    client_v1, v1_status = get_twitter_conn_v1(current_credential_index)
+    client_v2, v2_status = get_twitter_conn_v2(current_credential_index)
 
-        client_v1, v1_status = get_twitter_conn_v1(current_credential_index)
-        client_v2, v2_status = get_twitter_conn_v2(current_credential_index)
+    if "rate_limited" in (v1_status, v2_status):
+        return False, "rate_limited"
+    if not client_v1 or not client_v2:
+        return False, "connection_error"
 
-        if "rate_limited" in (v1_status, v2_status):
-            switch_credentials()
-            continue
-        if not client_v1 or not client_v2:
-            switch_credentials()
-            continue
+    media_ids = _upload_media(client_v1, media_path, creds['Email'])
+    if media_path and not media_ids:
+        return False, "media_upload_failed"
 
-        media_ids = _upload_media(client_v1, media_path, creds['Email'])
-        if media_path and not media_ids:
-            switch_credentials()
-            continue
+    try:
+        response = client_v2.create_tweet(text=tweet_text, media_ids=media_ids)
+        logger.info(f"Tweet posted by {creds['Email']}: https://x.com/user/status/{response.data['id']}")
+        tweet_counts[creds['Email']]['count'] += 1
 
-        today = datetime.now(UTC).date()
-        if tweet_counts[creds['Email']]['date'] < today:
-            tweet_counts[creds['Email']] = {'count': 0, 'date': today}
-        if tweet_counts[creds['Email']]['count'] >= 17:
-            logger.info(f"{creds['Email']} has reached daily limit of 17 tweets.")
-            quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=24)
-            switch_credentials()
-            continue
+        if tweet:
+            tweet.update({
+                'posted': True, 'scheduled_time': datetime.now(UTC).isoformat(),
+                'tweet_id': response.data['id'], 'posted_by': [creds['Email']]
+            })
+            save_tweets_to_file(app_config['TWEET_STORAGE'], tweets)
 
-        try:
-            response = client_v2.create_tweet(text=tweet_text, media_ids=media_ids)
-            logger.info(f"Tweet posted by {creds['Email']}: https://x.com/user/status/{response.data['id']}")
-            tweet_counts[creds['Email']]['count'] += 1
-
-            if tweet:
-                tweet.update({
-                    'posted': True, 'scheduled_time': datetime.now(UTC).isoformat(),
-                    'tweet_id': response.data['id'], 'posted_by': [creds['Email']]
-                })
-                save_tweets_to_file(app_config['TWEET_STORAGE'], tweets)
-
+        if not no_cooldown:
             logger.info(f"Cooldown for {COOLDOWN_TIME} seconds...")
             time.sleep(COOLDOWN_TIME)
-            return True, response.data['id']
-        except tweepy.errors.TweepyException as e:
-            if e.response and e.response.status_code == 429:
-                quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=12)
-                logger.info(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
-                switch_credentials()
-                return 'rate_limited', None
-            logger.info(f"Error posting tweet with {creds['Email']}: {e}")
-            switch_credentials()
-
-    logger.info("Failed to post tweet. All credentials failed.")
-    return False, None
+        return True, response.data['id']
+        
+    except tweepy.errors.TweepyException as e:
+        if e.response and e.response.status_code == 429:
+            quarantined_credentials[creds['Email']] = datetime.now(UTC) + timedelta(hours=12)
+            logger.info(f"Rate limit hit (429) for {creds['Email']}. Quarantining for 12 hours.")
+            return False, "rate_limited"
+        
+        logger.info(f"Error posting tweet with {creds['Email']}: {e}")
+        return False, "api_error"
 
 def check_credential_health():
     while True:
