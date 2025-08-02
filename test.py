@@ -852,7 +852,7 @@ def main():
     logging.info("Script running with admin privileges. Initializing bot.")
     
     # Initialize bot components
-    updater = Updater(TELEGRAM_TOKEN, use_context=True)
+    updater = Updater(TELEGRAM_TOKEN)
     bot = updater.bot
     dp = updater.dispatcher
 
