@@ -1,0 +1,214 @@
+2025-08-02 17:47:40,167 - INFO - pywin32 version: 311
+2025-08-02 17:47:40,167 - INFO - Intrusion lab script started.
+2025-08-02 17:47:40,254 - INFO - System: Windows, User: USER, Platform: Windows-11-10.0.22000-SP0, Privileges: Admin
+2025-08-02 17:47:40,270 - INFO - UAC status: Enabled
+2025-08-02 17:47:40,283 - INFO - UAC prompt level set to no prompt (lab setting).
+2025-08-02 17:47:40,283 - INFO - Listing available privileges...
+2025-08-02 17:47:40,322 - INFO - Privileges for USER:
+2025-08-02 17:47:40,322 - INFO -   - Privilege: State
+2025-08-02 17:47:40,322 - INFO -   - SeIncreaseQuotaPrivilege: Disabled
+2025-08-02 17:47:40,322 - INFO -   - SeSecurityPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeTakeOwnershipPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeLoadDriverPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeSystemProfilePrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeSystemtimePrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeProfileSingleProcessPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeIncreaseBasePriorityPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeCreatePagefilePrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeBackupPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeRestorePrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeShutdownPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeDebugPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeSystemEnvironmentPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeChangeNotifyPrivilege: Enabled
+2025-08-02 17:47:40,323 - INFO -   - SeRemoteShutdownPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeUndockPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeManageVolumePrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeImpersonatePrivilege: Enabled
+2025-08-02 17:47:40,323 - INFO -   - SeCreateGlobalPrivilege: Enabled
+2025-08-02 17:47:40,323 - INFO -   - SeIncreaseWorkingSetPrivilege: Disabled
+2025-08-02 17:47:40,323 - INFO -   - SeTimeZonePrivilege: Disabled
+2025-08-02 17:47:40,324 - INFO -   - SeCreateSymbolicLinkPrivilege: Disabled
+2025-08-02 17:47:40,324 - INFO -   - SeDelegateSessionUserImpersonatePrivilege: Disabled
+2025-08-02 17:47:40,324 - INFO - 
+[*] Privileges:
+[*] Privileges for USER:
+  - Privilege: State
+  - SeIncreaseQuotaPrivilege: Disabled
+  - SeSecurityPrivilege: Disabled
+  - SeTakeOwnershipPrivilege: Disabled
+  - SeLoadDriverPrivilege: Disabled
+  - SeSystemProfilePrivilege: Disabled
+  - SeSystemtimePrivilege: Disabled
+  - SeProfileSingleProcessPrivilege: Disabled
+  - SeIncreaseBasePriorityPrivilege: Disabled
+  - SeCreatePagefilePrivilege: Disabled
+  - SeBackupPrivilege: Disabled
+  - SeRestorePrivilege: Disabled
+  - SeShutdownPrivilege: Disabled
+  - SeDebugPrivilege: Disabled
+  - SeSystemEnvironmentPrivilege: Disabled
+  - SeChangeNotifyPrivilege: Enabled
+  - SeRemoteShutdownPrivilege: Disabled
+  - SeUndockPrivilege: Disabled
+  - SeManageVolumePrivilege: Disabled
+  - SeImpersonatePrivilege: Enabled
+  - SeCreateGlobalPrivilege: Enabled
+  - SeIncreaseWorkingSetPrivilege: Disabled
+  - SeTimeZonePrivilege: Disabled
+  - SeCreateSymbolicLinkPrivilege: Disabled
+  - SeDelegateSessionUserImpersonatePrivilege: Disabled
+2025-08-02 17:47:40,324 - INFO - Attempting to enable disabled privileges...
+2025-08-02 17:47:40,362 - ERROR - Failed to enable privilege SeIncreaseQuotaPrivilege: 6
+2025-08-02 17:47:40,362 - ERROR - Failed to enable privilege SeSecurityPrivilege: 6
+2025-08-02 17:47:40,363 - ERROR - Failed to enable privilege SeTakeOwnershipPrivilege: 6
+2025-08-02 17:47:40,363 - ERROR - Failed to enable privilege SeLoadDriverPrivilege: 6
+2025-08-02 17:47:40,363 - ERROR - Failed to enable privilege SeSystemProfilePrivilege: 6
+2025-08-02 17:47:40,363 - ERROR - Failed to enable privilege SeSystemtimePrivilege: 6
+2025-08-02 17:47:40,363 - ERROR - Failed to enable privilege SeProfileSingleProcessPrivilege: 6
+2025-08-02 17:47:40,364 - ERROR - Failed to enable privilege SeIncreaseBasePriorityPrivilege: 6
+2025-08-02 17:47:40,364 - ERROR - Failed to enable privilege SeCreatePagefilePrivilege: 6
+2025-08-02 17:47:40,364 - ERROR - Failed to enable privilege SeBackupPrivilege: 6
+2025-08-02 17:47:40,364 - ERROR - Failed to enable privilege SeRestorePrivilege: 6
+2025-08-02 17:47:40,365 - ERROR - Failed to enable privilege SeShutdownPrivilege: 6
+2025-08-02 17:47:40,365 - ERROR - Failed to enable privilege SeDebugPrivilege: 6
+2025-08-02 17:47:40,365 - ERROR - Failed to enable privilege SeSystemEnvironmentPrivilege: 6
+2025-08-02 17:47:40,365 - ERROR - Failed to enable privilege SeRemoteShutdownPrivilege: 6
+2025-08-02 17:47:40,365 - ERROR - Failed to enable privilege SeUndockPrivilege: 6
+2025-08-02 17:47:40,366 - ERROR - Failed to enable privilege SeManageVolumePrivilege: 6
+2025-08-02 17:47:40,366 - ERROR - Failed to enable privilege SeIncreaseWorkingSetPrivilege: 6
+2025-08-02 17:47:40,366 - ERROR - Failed to enable privilege SeTimeZonePrivilege: 6
+2025-08-02 17:47:40,366 - ERROR - Failed to enable privilege SeCreateSymbolicLinkPrivilege: 6
+2025-08-02 17:47:40,366 - ERROR - Failed to enable privilege SeDelegateSessionUserImpersonatePrivilege: 6
+2025-08-02 17:47:40,367 - INFO - 
+[*] Privilege Enablement:
+[!] Failed to enable privilege SeIncreaseQuotaPrivilege: 6
+[!] Failed to enable privilege SeSecurityPrivilege: 6
+[!] Failed to enable privilege SeTakeOwnershipPrivilege: 6
+[!] Failed to enable privilege SeLoadDriverPrivilege: 6
+[!] Failed to enable privilege SeSystemProfilePrivilege: 6
+[!] Failed to enable privilege SeSystemtimePrivilege: 6
+[!] Failed to enable privilege SeProfileSingleProcessPrivilege: 6
+[!] Failed to enable privilege SeIncreaseBasePriorityPrivilege: 6
+[!] Failed to enable privilege SeCreatePagefilePrivilege: 6
+[!] Failed to enable privilege SeBackupPrivilege: 6
+[!] Failed to enable privilege SeRestorePrivilege: 6
+[!] Failed to enable privilege SeShutdownPrivilege: 6
+[!] Failed to enable privilege SeDebugPrivilege: 6
+[!] Failed to enable privilege SeSystemEnvironmentPrivilege: 6
+[!] Failed to enable privilege SeRemoteShutdownPrivilege: 6
+[!] Failed to enable privilege SeUndockPrivilege: 6
+[!] Failed to enable privilege SeManageVolumePrivilege: 6
+[!] Failed to enable privilege SeIncreaseWorkingSetPrivilege: 6
+[!] Failed to enable privilege SeTimeZonePrivilege: 6
+[!] Failed to enable privilege SeCreateSymbolicLinkPrivilege: 6
+[!] Failed to enable privilege SeDelegateSessionUserImpersonatePrivilege: 6
+2025-08-02 17:47:40,367 - INFO - Creating new admin user...
+2025-08-02 17:49:24,543 - INFO - Script interrupted by user.
+2025-08-02 17:49:24,543 - INFO - Performing cleanup...
+2025-08-02 17:49:28,431 - INFO - pywin32 version: 311
+2025-08-02 17:49:28,431 - INFO - Intrusion lab script started.
+2025-08-02 17:49:28,482 - INFO - System: Windows, User: USER, Platform: Windows-11-10.0.22000-SP0, Privileges: Admin
+2025-08-02 17:49:28,495 - INFO - UAC status: Enabled
+2025-08-02 17:49:28,506 - INFO - UAC prompt level set to no prompt (lab setting).
+2025-08-02 17:49:28,506 - INFO - Listing available privileges...
+2025-08-02 17:49:28,540 - INFO - Privileges for USER:
+2025-08-02 17:49:28,540 - INFO -   - Privilege: State
+2025-08-02 17:49:28,540 - INFO -   - SeIncreaseQuotaPrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeSecurityPrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeTakeOwnershipPrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeLoadDriverPrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeSystemProfilePrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeSystemtimePrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeProfileSingleProcessPrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeIncreaseBasePriorityPrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeCreatePagefilePrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeBackupPrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeRestorePrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeShutdownPrivilege: Disabled
+2025-08-02 17:49:28,540 - INFO -   - SeDebugPrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO -   - SeSystemEnvironmentPrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO -   - SeChangeNotifyPrivilege: Enabled
+2025-08-02 17:49:28,541 - INFO -   - SeRemoteShutdownPrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO -   - SeUndockPrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO -   - SeManageVolumePrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO -   - SeImpersonatePrivilege: Enabled
+2025-08-02 17:49:28,541 - INFO -   - SeCreateGlobalPrivilege: Enabled
+2025-08-02 17:49:28,541 - INFO -   - SeIncreaseWorkingSetPrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO -   - SeTimeZonePrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO -   - SeCreateSymbolicLinkPrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO -   - SeDelegateSessionUserImpersonatePrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO - 
+[*] Privileges:
+[*] Privileges for USER:
+  - Privilege: State
+  - SeIncreaseQuotaPrivilege: Disabled
+  - SeSecurityPrivilege: Disabled
+  - SeTakeOwnershipPrivilege: Disabled
+  - SeLoadDriverPrivilege: Disabled
+  - SeSystemProfilePrivilege: Disabled
+  - SeSystemtimePrivilege: Disabled
+  - SeProfileSingleProcessPrivilege: Disabled
+  - SeIncreaseBasePriorityPrivilege: Disabled
+  - SeCreatePagefilePrivilege: Disabled
+  - SeBackupPrivilege: Disabled
+  - SeRestorePrivilege: Disabled
+  - SeShutdownPrivilege: Disabled
+  - SeDebugPrivilege: Disabled
+  - SeSystemEnvironmentPrivilege: Disabled
+  - SeChangeNotifyPrivilege: Enabled
+  - SeRemoteShutdownPrivilege: Disabled
+  - SeUndockPrivilege: Disabled
+  - SeManageVolumePrivilege: Disabled
+  - SeImpersonatePrivilege: Enabled
+  - SeCreateGlobalPrivilege: Enabled
+  - SeIncreaseWorkingSetPrivilege: Disabled
+  - SeTimeZonePrivilege: Disabled
+  - SeCreateSymbolicLinkPrivilege: Disabled
+  - SeDelegateSessionUserImpersonatePrivilege: Disabled
+2025-08-02 17:49:28,541 - INFO - Attempting to enable disabled privileges...
+2025-08-02 17:49:28,571 - ERROR - Failed to enable privilege SeIncreaseQuotaPrivilege: 6
+2025-08-02 17:49:28,572 - ERROR - Failed to enable privilege SeSecurityPrivilege: 6
+2025-08-02 17:49:28,572 - ERROR - Failed to enable privilege SeTakeOwnershipPrivilege: 6
+2025-08-02 17:49:28,572 - ERROR - Failed to enable privilege SeLoadDriverPrivilege: 6
+2025-08-02 17:49:28,572 - ERROR - Failed to enable privilege SeSystemProfilePrivilege: 6
+2025-08-02 17:49:28,573 - ERROR - Failed to enable privilege SeSystemtimePrivilege: 6
+2025-08-02 17:49:28,573 - ERROR - Failed to enable privilege SeProfileSingleProcessPrivilege: 6
+2025-08-02 17:49:28,573 - ERROR - Failed to enable privilege SeIncreaseBasePriorityPrivilege: 6
+2025-08-02 17:49:28,573 - ERROR - Failed to enable privilege SeCreatePagefilePrivilege: 6
+2025-08-02 17:49:28,573 - ERROR - Failed to enable privilege SeBackupPrivilege: 6
+2025-08-02 17:49:28,574 - ERROR - Failed to enable privilege SeRestorePrivilege: 6
+2025-08-02 17:49:28,574 - ERROR - Failed to enable privilege SeShutdownPrivilege: 6
+2025-08-02 17:49:28,574 - ERROR - Failed to enable privilege SeDebugPrivilege: 6
+2025-08-02 17:49:28,574 - ERROR - Failed to enable privilege SeSystemEnvironmentPrivilege: 6
+2025-08-02 17:49:28,574 - ERROR - Failed to enable privilege SeRemoteShutdownPrivilege: 6
+2025-08-02 17:49:28,575 - ERROR - Failed to enable privilege SeUndockPrivilege: 6
+2025-08-02 17:49:28,575 - ERROR - Failed to enable privilege SeManageVolumePrivilege: 6
+2025-08-02 17:49:28,575 - ERROR - Failed to enable privilege SeIncreaseWorkingSetPrivilege: 6
+2025-08-02 17:49:28,575 - ERROR - Failed to enable privilege SeTimeZonePrivilege: 6
+2025-08-02 17:49:28,575 - ERROR - Failed to enable privilege SeCreateSymbolicLinkPrivilege: 6
+2025-08-02 17:49:28,576 - ERROR - Failed to enable privilege SeDelegateSessionUserImpersonatePrivilege: 6
+2025-08-02 17:49:28,576 - INFO - 
+[*] Privilege Enablement:
+[!] Failed to enable privilege SeIncreaseQuotaPrivilege: 6
+[!] Failed to enable privilege SeSecurityPrivilege: 6
+[!] Failed to enable privilege SeTakeOwnershipPrivilege: 6
+[!] Failed to enable privilege SeLoadDriverPrivilege: 6
+[!] Failed to enable privilege SeSystemProfilePrivilege: 6
+[!] Failed to enable privilege SeSystemtimePrivilege: 6
+[!] Failed to enable privilege SeProfileSingleProcessPrivilege: 6
+[!] Failed to enable privilege SeIncreaseBasePriorityPrivilege: 6
+[!] Failed to enable privilege SeCreatePagefilePrivilege: 6
+[!] Failed to enable privilege SeBackupPrivilege: 6
+[!] Failed to enable privilege SeRestorePrivilege: 6
+[!] Failed to enable privilege SeShutdownPrivilege: 6
+[!] Failed to enable privilege SeDebugPrivilege: 6
+[!] Failed to enable privilege SeSystemEnvironmentPrivilege: 6
+[!] Failed to enable privilege SeRemoteShutdownPrivilege: 6
+[!] Failed to enable privilege SeUndockPrivilege: 6
+[!] Failed to enable privilege SeManageVolumePrivilege: 6
+[!] Failed to enable privilege SeIncreaseWorkingSetPrivilege: 6
+[!] Failed to enable privilege SeTimeZonePrivilege: 6
+[!] Failed to enable privilege SeCreateSymbolicLinkPrivilege: 6
+[!] Failed to enable privilege SeDelegateSessionUserImpersonatePrivilege: 6
+2025-08-02 17:49:28,576 - INFO - Creating new admin user...
